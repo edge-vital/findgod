@@ -1,13 +1,22 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-04-18 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-04-19 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**findgod.com is LIVE and fully Phase-B-ready.** In a single session we shipped: the full security pack, dynamic cliffhanger + multi-choice AI responses, Supabase OTP auth, a Claude-style home-page category panel with 25 pinpointed prompts, a custom cinematic OG share image, and a polished signup-wall UX with Latin crosses. IG launch slate is still staged and waiting on Higgsfield setup.
+**findgod.com is LIVE + now version-controlled on GitHub.** Today (2026-04-19) we:
+
+1. Shipped an **adaptive AI response system** — responses are no longer rigid 6-part templates. First turn never gives "Do this today: 1, 2, 3" homework. Action steps only appear when earned by the conversation. Full rules live in `lib/findgod-system-prompt.ts`.
+2. **Mobile UX pass** — multi-choice buttons lifted from near-invisible (`border/10 bg/3`) to prominent (`border/20 bg/6`, Inter font labels, gold hover). Input bar got brighter borders + gold focus ring. Killed the typewriter/JetBrains-Mono look inside chat replies (stayed on the home-page category label — that's brand-locked).
+3. **Signup wall polish** — "I'm in" → **"Continue the conversation"** CTA. Inputs bumped to 16px (kills iOS zoom-on-focus). "KEEP GOING." now has proper word-spacing (was collapsing to "KEEPGOING." at tight `-0.02em` tracking).
+4. **Fixed a mid-stream JSON leak** — the ```choices fenced block was briefly visible as raw `{"question":"…"` text during streaming because `parseChoices` only stripped it AFTER the closing fence arrived. Now strips from the opener forward the instant it appears. Fix in `app/chat-interface.tsx:parseChoices()`.
+5. **Dev-only `/api/chat/reset` endpoint** added — visit `http://localhost:3000/api/chat/reset` in a browser to clear the signed cookie + meta + localStorage flag and land back on home with a fresh free-chat count. Returns 404 in production so it can't leak.
+6. **Project is now a proper git repo on GitHub at `github.com/edge-vital/findgod`.** First commit: `abc730b`. Stray empty `/Users/jonespersen/.git` (which was breaking `git status`) was cleaned up. Vercel project is linked to the GitHub repo in dashboard. Push-to-main now SHOULD auto-deploy — but the first GitHub-triggered deploy hasn't fired yet (all prod deploys in the list still say "vercel deploy" = CLI). Production shipping today happened via `vercel deploy --prod` while we watch whether GitHub auto-deploy kicks in on the next push.
+
+Earlier (2026-04-18) shipped: security pack, dynamic cliffhanger + multi-choice AI responses, Supabase OTP auth, 25-prompt category panel, cinematic OG share image, signup-wall chrome. IG launch slate still staged and waiting on Higgsfield setup.
 
 ### The user's current mental model
 
@@ -107,14 +116,15 @@ Source of truth: **`.claude/rules/brand-identity.md`**.
 - **Smooth scrolling** globally.
 - **`prefers-reduced-motion` support** — reduces all animations to 0.01ms.
 
-### AI chat response format (all 6 parts in `lib/findgod-system-prompt.ts`)
+### AI chat response format — ADAPTIVE (rewritten 2026-04-19)
 
-1. **Verdict** — bold 1–2 sentences
-2. **Reasoning** — 2–4 sentences, Lie vs Truth contrast
-3. **Scripture blockquote** — Georgia italic, gold border-left
-4. **Action step** — `**Do this today:**` + 1–3 numbered items
-5. **Close** — one sharp sentence
-6. **```choices fenced block** — JSON with `question` + `options` (3–4 items). Parsed by `MultipleChoice` component in `chat-interface.tsx`; rendered as clickable buttons + "Something else — let me explain" escape that focuses the text input.
+The system prompt in `lib/findgod-system-prompt.ts` is now intentionally loose. Key rules:
+
+- **First turn in a conversation:** NEVER includes `**Do this today:**` or a numbered action list. First turn = recognition line + scripture (if it lands) + pinpointed ```choices question. The first response should feel like a fire lighting, not a manual being handed over.
+- **Subsequent turns:** palette of pieces — opener, body, scripture blockquote (optional), action step (RARE — only when earned), close. NOT every response needs all of them. Back-to-back numbered action lists = off-voice.
+- **```choices fenced block** — almost always required. JSON with `question` + `options` (3–4 short, mutually distinct). Parsed by `parseChoices()` + `MultipleChoice` in `chat-interface.tsx`; rendered as buttons + an "Or something else — type it below ↓" escape that focuses the text input.
+- **Self-check list** runs in the prompt: *"Did I give homework last turn? Does this feel like a template? Am I giving action steps before he feels heard?"*
+- **Streaming-safe:** `parseChoices()` hides the ```choices block from the moment the opener arrives, not just after the closer. Prevents the raw JSON leak that used to flicker during streams.
 
 When to break format: casual messages / gospel questions / pure clarification / crisis (safety resources come first with NO choices block). Rules documented in the system prompt.
 
@@ -137,7 +147,7 @@ Card has a **warm gold aura** behind it (radial gradient blur) + **hairline of w
     - Remembered — we'll greet you by name every time you come back
     - The Daily Word — one verse, one reflection, 6 AM every morning
     - Zero spam. Unsubscribe anytime.
-- Form: `First name` + `Enter your email` + `I'm in`
+- Form: `First name` + `Enter your email` + **`Continue the conversation`** CTA (changed from "I'm in" on 2026-04-19 per Jones). Inputs are 16px (prevents iOS zoom-on-focus jank).
 - Fine print: `Free forever · Email only · 10 seconds`
 
 **Step 2 — `CodeView`** (after submitting email):
@@ -206,6 +216,8 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 9. **Avoid AI-typical visual flourishes generally.** Before shipping any cursor effect, hover state, ambient gradient, ask: *would this look at home on every other AI startup landing page?* If yes, simplify or kill it.
 10. **Gmail MX records are sacred.** Web DNS changes touch A + CNAME only.
 11. **Agent Browser is blocked by BotID in production.** agent-browser's Chrome for Testing trips `navigator.webdriver === true` and similar fingerprints. For automated UI verification, always test against localhost (BotID is a no-op in dev).
+12. **A stray `.git` folder at `/Users/jonespersen/.git` silently broke local git ops.** `git status` from inside the project reported the entire home directory as untracked because git walked up and found that orphan `.git`. Cleaned up 2026-04-19. Same class of issue as the stray home-folder `package-lock.json` that crashed Turbopack. **Never run `git init` outside the project folder.** If a `git status` ever shows files from outside the project, stop and check `git rev-parse --show-toplevel`.
+13. **Vercel dashboard "connect GitHub" may not backfill.** After wiring `edge-vital/findgod` to the Vercel project, Vercel did not auto-deploy from the first push we'd already made. Current deploys still trigger via `vercel deploy --prod` until we confirm the next git push fires a dashboard deployment. Don't assume auto-deploy works until a commit hash (not `vercel deploy`) shows up as the source in the Deployments tab.
 
 ---
 
@@ -219,6 +231,7 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `app/signup-form.tsx` | The three-step OTP auth blocker: `InitialView` / `CodeView` / `SuccessView`. Uses TWO `useActionState` hooks (requestOtp + verifyOtp). Owns all chrome — SignupBlocker is just a container. Includes the `CrossIcon` SVG. |
 | `app/actions.ts` | Server actions: `requestOtp` sends the 6-digit code + stores name in `user_metadata`; `verifyOtp` verifies + pushes to Beehiiv (if env vars set). BotID-protected. |
 | `app/api/chat/route.ts` | Chat API route. Defenses: BotID → Supabase auth check (skips cookie counter + injects firstName) → for anonymous visitors, signed cookie counter → streamText. |
+| `app/api/chat/reset/route.ts` | **Dev-only** free-chat-wall reset. GET returns HTML that clears both cookies + the `findgod_free_chat_used` localStorage flag + redirects home. Returns 404 in production. Usage: `http://localhost:3000/api/chat/reset`. |
 | `app/cursor-spotlight.tsx` | Cursor-following soft white glow (client, desktop only) |
 | `app/icon.svg` + `app/apple-icon.svg` | 888 Seal favicons |
 | `app/opengraph-image.tsx` | Dynamic 1200×630 OG share image. Reads TTFs from `public/fonts/` via `readFileSync` at module load. Primary headline "The world is noise. This isn't." + subhead + layered gold glow. |
@@ -246,11 +259,24 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 
 ## 🔄 Common operations
 
-**Deploy a change:**
+**Deploy a change — preferred (once GitHub auto-deploy is confirmed working):**
 ```bash
 cd "/Users/jonespersen/Desktop/Find God"
-npx vercel@latest deploy --prod --yes
+git add .
+git commit -m "short, why-focused message"
+git push
+# Vercel auto-builds in ~90s. Watch vercel.com/dashboard → findgod → Deployments.
 ```
+
+**Deploy a change — fallback (if GitHub hook isn't firing):**
+```bash
+cd "/Users/jonespersen/Desktop/Find God"
+vercel deploy --prod --yes
+# Already authenticated as edge-vital. Takes ~40s.
+```
+
+**Reset the free-chat wall in local dev:**
+Open `http://localhost:3000/api/chat/reset` in a browser. Clears cookies + localStorage, lands back on home with a fresh count. Prod-safe (404s in production).
 
 **Start dev server (port 3847 to avoid collisions):**
 ```bash
