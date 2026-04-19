@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
+  <rect width="180" height="180" fill="#000000"/>
+  <circle cx="90" cy="90" r="72" fill="none" stroke="#F0EDE6" stroke-width="3.5"/>
+  <text x="90" y="84"
+    font-family="'Arial Black', 'Helvetica Inserat', Impact, sans-serif"
+    font-weight="900"
+    font-size="58"
+    fill="#F0EDE6"
+    text-anchor="middle"
+    dominant-baseline="central"
+    letter-spacing="-4">888</text>
+  <text x="90" y="126"
+    font-family="ui-monospace, 'SF Mono', monospace"
+    font-weight="400"
+    font-size="7.5"
+    fill="#F0EDE6"
+    fill-opacity="0.75"
+    text-anchor="middle"
+    dominant-baseline="central"
+    letter-spacing="3">ΙΗΣΟΥΣ</text>
+</svg>
