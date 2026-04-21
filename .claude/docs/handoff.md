@@ -1,13 +1,30 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-04-19 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-04-21 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**findgod.com is LIVE + now version-controlled on GitHub.** Today (2026-04-19) we:
+**findgod.com is LIVE + admin-dashboard prereqs ~90% done.** Today (2026-04-21) we knocked out 6 of 9 sub-tasks in Part 1 of [The FINDGOD Command Center plan](~/.claude/plans/rustling-jingling-whale.md) — every prereq that had to land in the main FINDGOD repo before we stand up the separate admin project.
+
+**Part 1 status:**
+- ✅ 1.1 — Supabase migration (`messages`, `events`, `prompt_versions` tables with service-role-only RLS + 90-day pg_cron TTL). File: `supabase/migrations/20260419000001_admin_dashboard_schema.sql`
+- ✅ 1.2 — `@vercel/analytics` installed + mounted in `app/layout.tsx`
+- ✅ 1.3 — Migration run against production Supabase (via dashboard SQL editor)
+- ✅ 1.4 — Chat persistence: every user + assistant turn writes to `messages` via onFinish in `app/api/chat/route.ts`; `first_message` + `hit_wall` events emit to `events`; session cookie introduced (`findgod_session_id`, 90-day, unsigned — not security-critical)
+- ✅ 1.5 — `landed` event via `/api/track/landed` pinged by `app/landed-tracker.tsx` on mount; `signed_up` event in `app/actions.ts::verifyOtp` + user_id backfill onto prior anonymous messages/events so signed-up users see their full history
+- ✅ 1.6 — **Pivoted from Edge Config → Supabase for the live prompt** (Hobby tier caps Edge Config at 8KB, our prompt is 12KB). `lib/active-system-prompt.ts` reads the active row from `prompt_versions` with a 60s in-memory cache. Seed row id: `f0b838f6-941a-4aac-9aac-b9e299c0b309`. Falls back to `lib/findgod-system-prompt.ts` if Supabase read fails.
+- ✅ 1.8 — `jon@findgod.com` (Supabase user id `9a48abc3-3f53-4221-976a-967ec7db2ba5`) flipped to admin via **`app_metadata.role = 'admin'`** (NOT user_metadata — see "Don't repeat" #14). Set via Supabase admin API with service role key.
+- ⏳ 1.7 — Beehiiv auto-sync: code is already wired in `app/actions.ts::verifyOtp` (was from 2026-04-18), just waiting on `BEEHIIV_API_KEY` + `BEEHIIV_PUBLICATION_ID` env vars being set in Vercel.
+- ⏳ 1.9 — Privacy policy copy update (90-day retention + sensitive-category disclosure). Low priority until IG/ads launch.
+
+**Part 2 (admin project shell) is gated on Jones sharing a UX/UI reference screenshot** so the visual direction is locked before build.
+
+---
+
+**Earlier (2026-04-19) we:**
 
 1. Shipped an **adaptive AI response system** — responses are no longer rigid 6-part templates. First turn never gives "Do this today: 1, 2, 3" homework. Action steps only appear when earned by the conversation. Full rules live in `lib/findgod-system-prompt.ts`.
 2. **Mobile UX pass** — multi-choice buttons lifted from near-invisible (`border/10 bg/3`) to prominent (`border/20 bg/6`, Inter font labels, gold hover). Input bar got brighter borders + gold focus ring. Killed the typewriter/JetBrains-Mono look inside chat replies (stayed on the home-page category label — that's brand-locked).
@@ -83,6 +100,10 @@ Source of truth: **`.claude/rules/brand-identity.md`**.
 | `BEEHIIV_API_KEY` | ❌ Not set | Mirror verified signups to Daily Word list |
 | `BEEHIIV_PUBLICATION_ID` | ❌ Not set | Same |
 | `NEXT_PUBLIC_SITE_URL` | Not needed | `app/layout.tsx` auto-resolves via `VERCEL_PROJECT_PRODUCTION_URL` |
+
+### Supabase auth configuration (dashboard-managed, not code)
+
+- **OTP length: 6** (was 8; changed 2026-04-21 because the UI expects 6-digit codes). If anyone bumps this back to 8, the signup flow breaks. Supabase Dashboard → Authentication → Providers → Email → OTP Length.
 
 ---
 
@@ -218,6 +239,9 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 11. **Agent Browser is blocked by BotID in production.** agent-browser's Chrome for Testing trips `navigator.webdriver === true` and similar fingerprints. For automated UI verification, always test against localhost (BotID is a no-op in dev).
 12. **A stray `.git` folder at `/Users/jonespersen/.git` silently broke local git ops.** `git status` from inside the project reported the entire home directory as untracked because git walked up and found that orphan `.git`. Cleaned up 2026-04-19. Same class of issue as the stray home-folder `package-lock.json` that crashed Turbopack. **Never run `git init` outside the project folder.** If a `git status` ever shows files from outside the project, stop and check `git rev-parse --show-toplevel`.
 13. **Vercel dashboard "connect GitHub" may not backfill.** After wiring `edge-vital/findgod` to the Vercel project, Vercel did not auto-deploy from the first push we'd already made. Current deploys still trigger via `vercel deploy --prod` until we confirm the next git push fires a dashboard deployment. Don't assume auto-deploy works until a commit hash (not `vercel deploy`) shows up as the source in the Deployments tab.
+14. **Vercel Edge Config on Hobby tier caps at 8KB total store size.** The FINDGOD AI system prompt is ~12KB, so it cannot fit. We tried on 2026-04-21 and got rejected by the API. We pivoted to Supabase-backed prompts with a 60s in-memory cache (`lib/active-system-prompt.ts`). Don't re-introduce Edge Config for the prompt unless the project upgrades to Pro (512KB per store) and there's a latency reason to move off Supabase. The empty Edge Config store `findgod-prompt` (id `ecfg_zgcan95qbl2acj5frdupdfvavea3`) still exists in Vercel — harmless, free, can be deleted via dashboard.
+15. **Use `app_metadata`, NEVER `user_metadata`, for authorization flags.** `user_metadata` is writable by the authenticated user via the Supabase JS SDK — any signed-in user could flip their own `is_admin` flag. `app_metadata` is only settable via the service role key. The admin role for `jon@findgod.com` is stored as `app_metadata.role='admin'`. The admin dashboard gate must check `app_metadata.role`, not `user_metadata.role`.
+16. **Fluid Compute module cache ≠ persistent.** The `lib/active-system-prompt.ts` in-memory cache is per-instance. Cold starts re-read Supabase. That's fine (30-50ms, amortized across ~60s × many requests) but don't assume it's guaranteed-hot. If we ever need fleet-wide cache invalidation after a prompt publish, we'll need Redis/KV or an Edge Config pointer — not in scope yet.
 
 ---
 
@@ -230,8 +254,13 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `app/chat-interface.tsx` | Chat UI client component. Contains: `ChatInterface` / `MessageBubble` / `MarkdownMessage` / `MultipleChoice` (parses ```choices blocks) / `CategoryPanel` / `ReturningGreeting` / `LiveMessage` / `SignupBlocker` / `InscriptionDivider` / `ThinkingIndicator`. Reads auth state via Supabase browser client. |
 | `app/signup-form.tsx` | The three-step OTP auth blocker: `InitialView` / `CodeView` / `SuccessView`. Uses TWO `useActionState` hooks (requestOtp + verifyOtp). Owns all chrome — SignupBlocker is just a container. Includes the `CrossIcon` SVG. |
 | `app/actions.ts` | Server actions: `requestOtp` sends the 6-digit code + stores name in `user_metadata`; `verifyOtp` verifies + pushes to Beehiiv (if env vars set). BotID-protected. |
-| `app/api/chat/route.ts` | Chat API route. Defenses: BotID → Supabase auth check (skips cookie counter + injects firstName) → for anonymous visitors, signed cookie counter → streamText. |
+| `app/api/chat/route.ts` | Chat API route. Defenses: BotID → Supabase auth check (skips cookie counter + injects firstName) → for anonymous visitors, signed cookie counter → streamText. Also: persists every user + assistant message via `onFinish`, emits `first_message` + `hit_wall` events, sets `findgod_session_id` cookie. |
 | `app/api/chat/reset/route.ts` | **Dev-only** free-chat-wall reset. GET returns HTML that clears both cookies + the `findgod_free_chat_used` localStorage flag + redirects home. Returns 404 in production. Usage: `http://localhost:3000/api/chat/reset`. |
+| `app/api/track/landed/route.ts` | Minimal POST endpoint fired once per session by `app/landed-tracker.tsx`. Writes `landed` event + sets `findgod_session_id` cookie if new. |
+| `app/landed-tracker.tsx` | Invisible client component — `useEffect` pings `/api/track/landed` once per mount, sessionStorage-deduped against StrictMode double-fire. Mounted in `app/page.tsx`. |
+| `lib/active-system-prompt.ts` | Resolves the live system prompt. Reads active `prompt_versions` row from Supabase with 60s in-memory cache + in-flight dedupe. Falls back to `lib/findgod-system-prompt.ts` on any failure. This is where the admin dashboard's "AI Training" edits show up at runtime. |
+| `lib/supabase/service.ts` | Service-role Supabase client factory. Bypasses RLS — use ONLY server-side. Needed for writes to `messages`/`events`/`prompt_versions` (RLS service-only). |
+| `supabase/migrations/20260419000001_admin_dashboard_schema.sql` | Initial admin-dashboard schema. Run once against production via Supabase SQL editor. Creates `messages` (90-day TTL via pg_cron), `events`, `prompt_versions` with service-role-only RLS. |
 | `app/cursor-spotlight.tsx` | Cursor-following soft white glow (client, desktop only) |
 | `app/icon.svg` + `app/apple-icon.svg` | 888 Seal favicons |
 | `app/opengraph-image.tsx` | Dynamic 1200×630 OG share image. Reads TTFs from `public/fonts/` via `readFileSync` at module load. Primary headline "The world is noise. This isn't." + subhead + layered gold glow. |
