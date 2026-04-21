@@ -1,49 +1,123 @@
-import { get } from "@vercel/edge-config";
 import {
   buildNamedPreamble,
   FINDGOD_SYSTEM_PROMPT_BASE,
 } from "./findgod-system-prompt";
+import { createServiceClient } from "./supabase/service";
 
 /**
  * Resolve the live system prompt for a chat request.
  *
- * Reads the admin-editable base prompt from Vercel Edge Config under the
- * key `active_prompt`. If the key is empty, the read fails, or the
- * `EDGE_CONFIG` env var isn't set (local dev without the store linked),
- * falls back to the file-based prompt in `findgod-system-prompt.ts`.
+ * The admin dashboard edits prompt versions in the Supabase
+ * `prompt_versions` table (is_active=true marks the live one). Reading
+ * Supabase on every chat turn would add a round-trip to first-token
+ * latency, so we cache the active prompt at module scope with a short
+ * TTL. Vercel Fluid Compute reuses function instances across concurrent
+ * requests, so in practice the vast majority of chat turns hit the cache.
+ *
+ * Cache is a per-instance in-memory variable — no need for Redis. When
+ * an admin publishes a new version, a fresh request within a stale
+ * instance will see the old prompt for up to TTL seconds before re-reading.
+ * That's the acceptable trade for zero infra.
+ *
+ * Falls back to the file-based prompt (lib/findgod-system-prompt.ts) when:
+ *   - Supabase is unreachable
+ *   - The query errors
+ *   - No row has is_active=true (fresh project, not yet seeded)
  *
  * The named preamble ("You are speaking with {firstName}...") is prepended
- * locally — Edge Config stores only the base text so the admin dashboard
+ * locally — Supabase stores only the base text so the admin dashboard
  * editor never has to handle per-user branching.
- *
- * Why Edge Config over Supabase: sub-10ms reads globally, no DB hit on
- * every chat turn, and updates propagate in seconds after the admin
- * dashboard publishes a new version. Supabase stays the source of truth
- * for prompt history and drafts.
  */
+
+// 60-second cache TTL. Fast enough that admin publishes feel live (users
+// see the new prompt within a minute), slow enough that we only hit
+// Supabase ~1x/minute per warm instance.
+const CACHE_TTL_MS = 60_000;
+
+type CachedPrompt = {
+  value: string;
+  fetchedAt: number;
+};
+
+// Module-scoped cache. Reset per-cold-start; reused across warm requests.
+let cache: CachedPrompt | null = null;
+
+// In-flight promise dedupe: if multiple requests hit an expired cache at
+// once, we want ONE Supabase read, not N. Subsequent requests share the
+// same promise while the fetch is pending.
+let inFlight: Promise<string> | null = null;
+
+async function fetchActivePromptBase(): Promise<string> {
+  const supabase = createServiceClient();
+  const { data, error } = await supabase
+    .from("prompt_versions")
+    .select("compiled_text")
+    .eq("is_active", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`${error.code ?? "supabase_error"}: ${error.message}`);
+  }
+
+  const compiled = data?.compiled_text;
+  if (typeof compiled === "string" && compiled.length > 0) {
+    return compiled;
+  }
+
+  // No active row — caller will use the file fallback.
+  return "";
+}
+
+async function getActivePromptBase(): Promise<string> {
+  const now = Date.now();
+  if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
+    return cache.value;
+  }
+
+  if (inFlight) return inFlight;
+
+  inFlight = (async () => {
+    try {
+      const value = await fetchActivePromptBase();
+      // Only cache non-empty values. Empty means "use file fallback", and
+      // we don't want to cache that — we want to retry Supabase soon in
+      // case the admin seeds a row.
+      if (value) {
+        cache = { value, fetchedAt: Date.now() };
+      }
+      return value;
+    } catch (e) {
+      // Log name + message only. Swallow for the caller so it falls back.
+      console.error(
+        "[findgod/prompt] Supabase read failed, using file fallback:",
+        e instanceof Error ? `${e.name}: ${e.message}` : "unknown error",
+      );
+      return "";
+    } finally {
+      inFlight = null;
+    }
+  })();
+
+  return inFlight;
+}
+
+/**
+ * Force the next call to re-read Supabase. Useful from the admin
+ * dashboard's "Publish" action if it runs in the same runtime as the
+ * chat route — typically they're separate projects, so this is mostly
+ * here for completeness.
+ */
+export function invalidateActivePromptCache(): void {
+  cache = null;
+}
+
 export async function getActiveSystemPrompt(
   opts: { firstName?: string | null } = {},
 ): Promise<string> {
   const firstName = opts.firstName?.trim() || null;
   const preamble = buildNamedPreamble(firstName);
 
-  // If EDGE_CONFIG isn't configured (local dev, new project before linking),
-  // skip the read entirely to avoid the library throwing.
-  if (process.env.EDGE_CONFIG) {
-    try {
-      const value = await get<string>("active_prompt");
-      if (typeof value === "string" && value.length > 0) {
-        return preamble + value;
-      }
-    } catch (e) {
-      // Log the name + message only — the full error object can contain
-      // connection-string fragments we don't want in downstream log sinks.
-      console.error(
-        "[findgod/prompt] Edge Config read failed, using file fallback:",
-        e instanceof Error ? `${e.name}: ${e.message}` : "unknown error",
-      );
-    }
-  }
-
-  return preamble + FINDGOD_SYSTEM_PROMPT_BASE;
+  const base = await getActivePromptBase();
+  return preamble + (base || FINDGOD_SYSTEM_PROMPT_BASE);
 }
