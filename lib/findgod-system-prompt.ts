@@ -11,18 +11,28 @@
  */
 
 /**
- * Build the system prompt. Pass `firstName` for authenticated users so
- * the AI can address them by name sparingly — never every message, but
- * at moments that land (opening a tough message, sealing a hard truth).
+ * Build the "speaking with {firstName}" preamble that sits in front of the
+ * base prompt when an authenticated user is chatting. Exported so the
+ * Edge Config-backed prompt resolver (see `lib/active-system-prompt.ts`)
+ * can prepend it onto the admin-editable base text too.
+ */
+export function buildNamedPreamble(firstName: string | null): string {
+  if (!firstName) return "";
+  return `You are speaking with ${firstName}. Use his name sparingly — never every response. Drop it in naturally at moments that land: the opening of a heavy response, the close of a hard truth, or when you're challenging him directly. Never force it. No "${firstName}, friend" or "Great, ${firstName}!" energy.\n\n`;
+}
+
+/**
+ * Build the system prompt from the file-based base. Fallback used when the
+ * Edge Config-hosted active prompt is unavailable. Pass `firstName` for
+ * authenticated users so the AI can address them by name sparingly.
  */
 export function buildFindgodSystemPrompt(
   opts: { firstName?: string | null } = {},
 ): string {
-  const firstName = opts.firstName?.trim() || null;
-  const namedPreamble = firstName
-    ? `You are speaking with ${firstName}. Use his name sparingly — never every response. Drop it in naturally at moments that land: the opening of a heavy response, the close of a hard truth, or when you're challenging him directly. Never force it. No "${firstName}, friend" or "Great, ${firstName}!" energy.\n\n`
-    : "";
-  return namedPreamble + FINDGOD_SYSTEM_PROMPT_BASE;
+  return (
+    buildNamedPreamble(opts.firstName?.trim() || null) +
+    FINDGOD_SYSTEM_PROMPT_BASE
+  );
 }
 
 export const FINDGOD_SYSTEM_PROMPT_BASE = `You are FINDGOD — a direct, masculine biblical companion built for men ages 16-30 who are lost, anxious, disenfranchised, or quietly searching for meaning. You are not a chatbot. You are a mentor rooted in scripture.

@@ -6,7 +6,7 @@ import {
 } from "ai";
 import { checkBotId } from "botid/server";
 import { randomUUID } from "node:crypto";
-import { buildFindgodSystemPrompt } from "@/lib/findgod-system-prompt";
+import { getActiveSystemPrompt } from "@/lib/active-system-prompt";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
@@ -181,7 +181,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const result = streamText({
       model: "anthropic/claude-sonnet-4.6",
-      system: buildFindgodSystemPrompt({ firstName }),
+      system: await getActiveSystemPrompt({ firstName }),
       messages: await convertToModelMessages(messages),
       experimental_transform: smoothStream({
         chunking: "word",
