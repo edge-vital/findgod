@@ -1,5 +1,6 @@
 import { ChatInterface } from "./chat-interface";
 import { CursorSpotlight } from "./cursor-spotlight";
+import { LandedTracker } from "./landed-tracker";
 
 export default function Home() {
   return (
@@ -18,6 +19,9 @@ export default function Home() {
 
       {/* Cursor-following warm spotlight (desktop only). Adds ambient depth. */}
       <CursorSpotlight />
+
+      {/* Fires a one-time `landed` funnel event on first session visit. Invisible. */}
+      <LandedTracker />
 
       {/* Cinematic vignette — radial darkening at the edges pulls the eye to center.
           A24 / film poster technique. */}

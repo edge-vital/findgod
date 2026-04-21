@@ -1,7 +1,11 @@
 "use server";
 
 import { checkBotId } from "botid/server";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
+import { createServiceClient } from "@/lib/supabase/service";
+
+const SESSION_COOKIE = "findgod_session_id";
 
 /**
  * Two-step email OTP flow:
@@ -174,6 +178,39 @@ export async function verifyOtp(
     (data.user.user_metadata?.first_name as string | undefined) ??
     name ??
     "";
+
+  // ── Admin dashboard instrumentation ─────────────────────────────────
+  // 1. Emit `signed_up` funnel event with this visitor's session id.
+  // 2. Backfill user_id onto their previous anonymous messages + events so
+  //    their full history attaches to the new account in the admin views.
+  // All fire-and-forget; a Supabase hiccup here must not block auth.
+  try {
+    const cookieStore = await cookies();
+    const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
+    if (sessionId && /^[0-9a-f-]{36}$/i.test(sessionId)) {
+      const svc = createServiceClient();
+      void svc.from("events").insert({
+        event_type: "signed_up",
+        session_id: sessionId,
+        user_id: data.user.id,
+      });
+      void svc
+        .from("messages")
+        .update({ user_id: data.user.id })
+        .eq("session_id", sessionId)
+        .is("user_id", null);
+      void svc
+        .from("events")
+        .update({ user_id: data.user.id })
+        .eq("session_id", sessionId)
+        .is("user_id", null);
+    }
+  } catch (e) {
+    console.error(
+      "[FINDGOD otp] signed_up event / backfill error:",
+      e instanceof Error ? e.message : "unknown",
+    );
+  }
 
   // Fire-and-forget Beehiiv subscribe. Must not block the auth success path.
   const beehiivKey = process.env.BEEHIIV_API_KEY;
