@@ -1,3 +1,4 @@
+import { checkBotId } from "botid/server";
 import { randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/service";
 
@@ -7,15 +8,19 @@ import { createServiceClient } from "@/lib/supabase/service";
  * `findgod_session_id` cookie, we skip (they've landed before). First-time
  * visitors get a session cookie set in the response.
  *
- * Kept deliberately minimal: no body, no auth. The only caller is our own
- * homepage. If a spammer hits it, they can inflate `landed` counts at
- * worst — they can't spoof the other three funnel events (those fire
- * server-side from trusted code paths).
+ * BotID protection added so the endpoint can't be spammed to inflate
+ * `landed` counts and burn Supabase row budget. No-op in local dev;
+ * enforced in production. An explicit bot returns 403.
  */
 const SESSION_COOKIE = "findgod_session_id";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 90; // 90 days
 
 export async function POST(req: Request): Promise<Response> {
+  const verification = await checkBotId();
+  if (verification.isBot) {
+    return new Response(null, { status: 403 });
+  }
+
   const cookie = req.headers.get("cookie") ?? "";
   const existing = cookie
     .split(";")
@@ -35,7 +40,12 @@ export async function POST(req: Request): Promise<Response> {
     session_id: sessionId,
   });
   if (error) {
-    console.error("[findgod/track/landed] insert failed:", error.message);
+    // Log only error.code — PostgREST error.message can include row
+    // values on constraint violations.
+    console.error(
+      "[findgod/track/landed] insert failed:",
+      error.code ?? "unknown",
+    );
     // Still set the cookie so we don't retry on every navigation.
   }
 

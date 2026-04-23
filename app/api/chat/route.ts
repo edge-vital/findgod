@@ -62,7 +62,16 @@ async function safeInsert(
 ): Promise<void> {
   const { error } = await createServiceClient().from(table).insert(row);
   if (error) {
-    console.error(`[findgod/chat] insert ${table} failed:`, error.message);
+    // Log only `error.code` — Supabase PostgREST error.message and
+    // error.details can include the failing row's values on constraint
+    // violations, which for the `messages` table means leaking user chat
+    // content (sensitive-category data) into Vercel logs. Code alone is
+    // enough to diagnose (e.g. 23505 = unique violation, PGRST116 = missing
+    // table, 42501 = insufficient privilege).
+    console.error(
+      `[findgod/chat] insert ${table} failed:`,
+      error.code ?? "unknown",
+    );
   }
 }
 
