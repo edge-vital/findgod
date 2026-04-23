@@ -456,7 +456,7 @@ export function ChatInterface() {
           )}
 
           {error && (
-            <p className="text-xs text-red-400/70">
+            <p className="text-xs text-red-400">
               Something went wrong. Please try again.
             </p>
           )}

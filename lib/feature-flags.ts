@@ -97,6 +97,3 @@ export async function getAllFlags(): Promise<FlagMap> {
   return getFlags();
 }
 
-export function invalidateFeatureFlagsCache(): void {
-  cache = null;
-}

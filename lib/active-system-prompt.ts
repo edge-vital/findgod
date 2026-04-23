@@ -102,16 +102,6 @@ async function getActivePromptBase(): Promise<string> {
   return inFlight;
 }
 
-/**
- * Force the next call to re-read Supabase. Useful from the admin
- * dashboard's "Publish" action if it runs in the same runtime as the
- * chat route — typically they're separate projects, so this is mostly
- * here for completeness.
- */
-export function invalidateActivePromptCache(): void {
-  cache = null;
-}
-
 export async function getActiveSystemPrompt(
   opts: { firstName?: string | null } = {},
 ): Promise<string> {

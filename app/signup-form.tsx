@@ -204,7 +204,7 @@ function InitialView({
         </div>
       </form>
 
-      {error && <p className="text-xs text-red-400/70">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
 
       {/* Fine print */}
       <p className="text-[11px] uppercase tracking-[0.2em] text-white/30">
@@ -282,7 +282,7 @@ function CodeView({
         </button>
       </form>
 
-      {error && <p className="text-xs text-red-400/70">{error}</p>}
+      {error && <p className="text-xs text-red-400">{error}</p>}
 
       <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">
         Didn&rsquo;t arrive? Check spam — or{" "}

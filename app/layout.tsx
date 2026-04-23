@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
-import {
-  Archivo,
-  EB_Garamond,
-  Inter,
-  JetBrains_Mono,
-} from "next/font/google";
+import { Archivo, Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Pixels } from "./pixels";
 import "./globals.css";
@@ -14,21 +9,19 @@ const inter = Inter({
   subsets: ["latin"],
 });
 
+// Weight 900 only — live surfaces only ever use Archivo Black. The
+// /concepts exploration pages load their own font instances. Dropped
+// 400 + 500 weights on 2026-04-23 after a perf audit flagged them as
+// loaded-but-unreferenced on every visit.
 const archivo = Archivo({
   variable: "--font-archivo",
   subsets: ["latin"],
-  weight: ["400", "500", "900"],
+  weight: ["900"],
 });
 
 const jetbrains = JetBrains_Mono({
   variable: "--font-jetbrains",
   subsets: ["latin"],
-});
-
-const ebGaramond = EB_Garamond({
-  variable: "--font-eb-garamond",
-  subsets: ["latin"],
-  style: ["normal", "italic"],
 });
 
 /**
@@ -92,7 +85,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${archivo.variable} ${jetbrains.variable} ${ebGaramond.variable} h-full antialiased`}
+      className={`${inter.variable} ${archivo.variable} ${jetbrains.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-[#050507] text-white font-sans">
         {children}

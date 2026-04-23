@@ -121,6 +121,3 @@ export async function getPersonalitySection(): Promise<string> {
   return inFlight;
 }
 
-export function invalidatePersonalityCache(): void {
-  cache = null;
-}
