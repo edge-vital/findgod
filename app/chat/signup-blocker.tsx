@@ -1,4 +1,4 @@
-import { SignupForm } from "../signup-form";
+import { SignupForm } from "@/app/signup-form";
 
 /**
  * The blocker shown when an anonymous visitor hits their free-chat limit.

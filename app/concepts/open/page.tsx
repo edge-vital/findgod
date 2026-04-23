@@ -1,4 +1,5 @@
 import { Archivo, Inter, JetBrains_Mono } from "next/font/google";
+import { FCross } from "@/components/f-cross";
 
 const archivo = Archivo({
   subsets: ["latin"],
@@ -260,28 +261,6 @@ function CM02_FGSeal({ size = 140 }: { size?: number }) {
         FG
       </span>
     </div>
-  );
-}
-
-function CM03_FCross({ size = 130 }: { size?: number }) {
-  // F where the horizontal arm extends both directions, forming a cross.
-  // The vertical of F + the extended top arm = a cross. The middle arm
-  // is what identifies it as an F. Suggests FG via implication.
-  return (
-    <svg
-      viewBox="0 0 100 130"
-      width={size * 0.85}
-      height={size}
-      fill="currentColor"
-      aria-label="F-cross"
-    >
-      {/* Cross horizontal — extends past where F's top arm would normally end */}
-      <rect x="0" y="22" width="100" height="18" />
-      {/* F vertical spine */}
-      <rect x="38" y="0" width="18" height="130" />
-      {/* F middle arm — short, identifies the F */}
-      <rect x="38" y="62" width="46" height="14" />
-    </svg>
   );
 }
 
@@ -632,7 +611,7 @@ export default function ConceptsOpenPage() {
                   </span>
                 </div>
                 <div className="flex min-h-[160px] flex-1 items-center justify-center">
-                  <CM03_FCross size={140} />
+                  <FCross size={140} />
                 </div>
                 <p className="text-xs leading-relaxed opacity-60">
                   The F-Cross. Brand initial that IS a cross. Reserved for hat
