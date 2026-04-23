@@ -10,6 +10,10 @@
  * wordmark, between AI response sections, on the signup wall, etc.
  *
  * Locked per brand-identity.md.
+ *
+ * ⚠ MIRRORED in the admin repo at
+ * `findgod-admin/components/inscription-divider.tsx`. If you change the
+ * markup here, change it there too — both render on the brand surface.
  */
 export function InscriptionDivider({
   className = "my-6",

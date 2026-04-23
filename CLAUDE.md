@@ -8,25 +8,31 @@ FINDGOD is a masculine Christian brand and digital ecosystem targeting 16-30 yea
 
 ## Tech Stack
 
-- **Landing page + AI app:** Next.js 16 (App Router), TypeScript, Tailwind CSS 4
-- **Hosting:** Vercel (free tier to start)
-- **AI brain:** OpenAI or Anthropic Claude API
-- **Auth + database:** Supabase (when AI app is built)
-- **Payments:** Stripe (when monetization starts)
-- **Newsletter:** Beehiiv
-- **Community:** Skool
-- **Merch fulfillment:** Printful/Gelato → real manufacturer when volume justifies
+- **Framework:** Next.js 16 (App Router, Turbopack), TypeScript, Tailwind CSS 4
+- **Hosting:** Vercel (Hobby tier, auto-deploy from GitHub `edge-vital/findgod`)
+- **AI:** Claude Sonnet 4.6 via **Vercel AI Gateway** (OIDC auth, no API key in code), AI SDK v6
+- **Admin dashboard:** separate repo `edge-vital/findgod-admin` → `admin.findgod.com`, shares Supabase
+- **Auth + database:** Supabase (OTP auth, `messages` / `events` / `prompt_versions` / `personality_config` / `feature_flags` / `knowledge_chunks` via pgvector)
+- **Bot defense:** Vercel BotID on `/api/chat`, `/api/track/landed`, all admin server actions
+- **Embeddings (upcoming M2+):** OpenAI `text-embedding-3-small` via direct fetch
+- **Newsletter:** Beehiiv (env vars set Production-only as of 2026-04-23)
+- **Community:** Skool (future)
+- **Merch fulfillment:** Printful/Gelato → real manufacturer when volume justifies (month 12+)
 - **Local dev runtime:** Node 24, npm
 
 ## Project Structure
 
-- `app/` — Next.js App Router pages and components (landing page lives here)
+- `app/` — Next.js App Router pages + route-colocated components
+- `components/` — Reusable UI primitives (shared across pages)
+- `lib/` — Runtime helpers (prompt compiler, ttl-cache, Supabase clients, pixels, etc.)
 - `public/` — Static assets (images, fonts, favicon)
-- `.claude/docs/` — Strategy, business bible, ICP, content bank, day 1 checklist, full strategic plan
-- `.claude/rules/` — Brand voice guidelines + code conventions Claude must follow
-- `.claude/agents/` — Custom subagent definitions (future)
-- `.claude/commands/` — Custom slash commands (future)
-- `.claude/launch.json` — Local dev server config for Claude Preview
+- `supabase/migrations/` — Version-controlled schema changes
+- `.claude/docs/` — **`handoff.md` is source of truth.** Plus business bible, ICP, strategic plan, content bank, production queue, AI Bible companion spec
+- `.claude/rules/` — Brand voice + visual identity + code conventions (check before writing anything)
+- `.claude/launch.json` — Dev server config for Claude Preview (findgod-site + findgod-admin)
+- `instrumentation-client.ts` — BotID path registration
+- `proxy.ts` — Next 16 routing middleware (function MUST be named `proxy`, not `middleware`)
+- Admin repo structure at `/Users/jonespersen/Desktop/findgod-admin/` — see its own `CLAUDE.md`
 
 ## Key Commands
 
@@ -41,7 +47,7 @@ FINDGOD is a masculine Christian brand and digital ecosystem targeting 16-30 yea
 - **Brand identity (LOCKED 2026-04-18):** Read `.claude/rules/brand-identity.md` before any visual decision. Wordmark, palette, marks (888 seal + F-Cross), lockup (L05), scripture font (Georgia italic), and the `ΙΗΣΟΥΣ ≡ 888` inscription system are locked. Tagline is the only open call (4 finalists narrowed; deferred until IG launch).
 - **Brand voice:** Always check `.claude/rules/brand-guidelines.md` before writing copy or content. The voice is "scripture-anchored sharpness" — direct, masculine, never corny, never partisan. Note: target audience is 16-30 yo men, but copy should NOT explicitly exclude women/older readers.
 - **Strategy:** Refer to `.claude/docs/business-bible.md`, `.claude/docs/icp.md`, and `.claude/docs/strategic-plan.md` for the full playbook. The refined sequence (2026-04-17) is: AI app + content → influencer amplification → clothing LAST (month 12-18+).
-- **AI system prompt:** The FINDGOD voice is enforced in `lib/findgod-system-prompt.ts`. Edit there to change how the chat sounds.
+- **AI system prompt:** The live prompt is compiled at runtime in `lib/prompt-compiler.ts` (base + personality + future stages). Admin dashboard edits `personality_config` in Supabase; changes propagate within 60s. `lib/findgod-system-prompt.ts` is the FALLBACK base text used only if Supabase read fails.
 - **Code style:** Follow `.claude/rules/coding-style.md` for the Next.js site.
 - **Move fast.** Default to immediate action over stealth/polish phases. Rough first, refine live.
 - **Mobile-first design.** Most visitors come from mobile — verify mobile layout at every step.

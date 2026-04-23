@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { requestOtp, verifyOtp, type AuthState } from "./actions";
-import { InscriptionDivider } from "./inscription-divider";
+import { InscriptionDivider } from "@/components/inscription-divider";
 
 const initialState: AuthState = { step: "idle" };
 

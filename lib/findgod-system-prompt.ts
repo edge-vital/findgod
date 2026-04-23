@@ -1,13 +1,21 @@
 /**
- * FINDGOD — AI System Prompt
+ * FINDGOD — FALLBACK base prompt.
  *
- * The invisible instructions sent to Claude before every user message.
- * This is where the FINDGOD "voice" AND "response structure" are defined.
- * Users never see this — they just feel that the AI talks to them like a mentor,
- * not a chatbot, and always in the signature FINDGOD format.
+ * ⚠ This file is the FALLBACK, not the live runtime prompt.
+ * The live prompt is resolved in this order:
+ *   1. `lib/prompt-compiler.ts::compileSystemPrompt()` — orchestrates
+ *   2. `lib/active-system-prompt.ts` — reads the admin-published base
+ *      from `prompt_versions` (is_active=true)
+ *   3. `lib/personality-stage.ts` — appends the personality section
+ *   4. (future) examples / guardrails / knowledge stages
  *
- * Keep this in sync with .claude/rules/brand-guidelines.md (the source of truth
- * for brand voice). When we refine voice, update both.
+ * `FINDGOD_SYSTEM_PROMPT_BASE` below is only used when the Supabase
+ * `prompt_versions` read fails or no active row exists (fresh installs).
+ * Editing this file changes the safety-net voice, NOT what users see
+ * day-to-day — that's the admin dashboard's AI Training tab.
+ *
+ * Keep this in sync with .claude/rules/brand-guidelines.md (the source
+ * of truth for brand voice). When we refine voice, update both.
  */
 
 /**

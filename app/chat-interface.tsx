@@ -4,7 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import { InscriptionDivider } from "./inscription-divider";
+import { InscriptionDivider } from "@/components/inscription-divider";
 import { SignupForm } from "./signup-form";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 
@@ -14,7 +14,7 @@ import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
  * hits the client when an AI message actually renders — not on initial
  * page load, when most visitors haven't even clicked Send yet.
  */
-const MarkdownMessage = dynamic(() => import("./markdown-message"), {
+const MarkdownMessage = dynamic(() => import("@/components/markdown-message"), {
   ssr: false,
   loading: () => null,
 });
