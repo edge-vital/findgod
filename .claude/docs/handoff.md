@@ -1,21 +1,40 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-04-22 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-04-23 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**Two live projects: findgod.com (public) + admin.findgod.com (command center).** Today (2026-04-22) shipped the admin dashboard shell plus the first two real pages. Highlights:
+**V1 admin dashboard is fully shipped.** findgod.com is live (public chat); admin.findgod.com is live with all 7 planned pages reading real data. No pages stubbed — every nav item renders a working experience.
 
-- ✅ **admin.findgod.com live** at its own Vercel project / GitHub repo (`edge-vital/findgod-admin`). Auth-gated via Supabase magic link + `app_metadata.role='admin'` + email allowlist. jon@findgod.com is the only admin.
-- ✅ **Overview page** — 4 live stat cards (Visitors / Started a chat / Signups / Messages) with 7-day window + % delta vs prior week + recent-activity feed pulling real rows from Supabase.
-- ✅ **Chats page** — list + collapsible detail. Detail view has "Visitor asked / FINDGOD responded" role tags with timestamps, assistant messages collapsed by default with preview + "Show full response" expand, and an amber "No AI response captured" card rendered in place of any orphan user message (with different copy for pre- vs post-persistence-fix turns).
-- ✅ **Persistence bug found + fixed.** The chat route was using `void safeInsert(...)` fire-and-forget inside `onFinish`, which raced Vercel's serverless teardown and dropped ~42% of assistant responses. Fix was to make `onFinish` async and `await` the insert. Commit `0c91bb1` in `edge-vital/findgod`. Diagnosed via Supabase row-count imbalance (12 user rows vs 7 assistant rows at time of discovery).
-- ✅ **Beehiiv auto-sync live.** API key + Publication ID set in Vercel env on the main findgod project. Old key (posted briefly in chat) was rotated + verified revoked via 401 probe.
+### V1 admin dashboard pages — all shipped 2026-04-22/23
 
-**Still ahead in Part 3:** Subscribers, AI Training, Costs, Pixels, Settings.
+| Page | What's live |
+|---|---|
+| **Overview** | 4 stat cards (Visitors / Started a chat / Signups / Messages) + 7-day window + % delta vs prior week + color-coded 10-row recent-activity feed. Empty-state prompt. |
+| **Subscribers** | Table of every verified signup (Supabase auth.users filtered to email_confirmed) + enrichment: last activity + message count + admin shield badge. Client-side search + CSV export (RFC 4180, date-stamped filename). |
+| **Chats** | List view (first question prominent, anonymous vs signed-in icon, turn count, last-active) + search across any message content (last 500 messages). Detail view is document-style: role tags + timestamps per turn, AI responses collapsed by default with preview + "Show full response" expand, amber "No AI response captured" card surfaces orphan user messages (different copy pre- vs post-persistence-fix). `choices` JSON parsed into a styled "Follow-up choice offered" chip card. |
+| **AI Training** | Raw-text editor pre-filled with currently-active compiled prompt + version history sidebar with one-click rollback. Confirms before publish / rollback. Server actions double-check `app_metadata.role='admin'`. Reuses the `prompt_versions` table; main app picks up changes within ~60s via `lib/active-system-prompt.ts` cache. |
+| **Costs** | 3 period cards (Today / 7d / 30d) with USD estimate + message count + anon-vs-authed share + input/output token totals. Pure-CSS 30-day daily bar chart (gold peaks). Plain-language methodology card + link to Vercel AI Gateway dashboard for authoritative numbers. Estimate is input_tokens × $3/M + output_tokens × $15/M (Sonnet 4.6 pricing), 4 chars/token, +3,500-token system overhead per call. |
+| **Pixels** | Paste-in-ready UI for Meta Pixel / GA4 / TikTok Pixel (standby — Jones doesn't have IDs yet). Main app `app/pixels.tsx` injects standard snippets via `next/script strategy="afterInteractive"` when a pixel is enabled + has a non-null ID. 5-min module-scoped cache on `lib/pixels.ts` so admin edits propagate to findgod.com within minutes. Zero IDs → zero script tags (exact current behavior). **⚠ Supabase `pixel_settings` migration file is written but NOT yet run** — the page will render but Save will error. Migration file: `supabase/migrations/20260422000001_pixel_settings.sql`. |
+| **Settings** | Read-only V1. Profile + admin email allowlist (from env) + daily digest placeholder + system info + sign-out button. |
+
+### Critical bug fix from 2026-04-22
+
+- **AI-response persistence race** — the chat route's `onFinish: ({text}) => void safeInsert(...)` fire-and-forget was racing Vercel serverless teardown and dropping ~42% of assistant responses (diagnosed via Supabase row-count imbalance: 12 user rows vs 7 assistant rows). Fix: `onFinish: async (...) => await safeInsert(...)`. AI SDK holds the stream open until onFinish resolves, which keeps the function alive. Commit `0c91bb1`. See "Don't repeat" #17. The admin Chats detail surfaces pre-fix historical gaps with an amber "No AI response captured" card — historical responses unrecoverable, they existed only as streamed tokens.
+
+### Pending / deferred
+
+- ⏳ **Part 3.8 — AI Training 2.0** (deferred after user strategic pause). Jones wants a tabbed workspace: **Knowledge Library** (upload PDFs / links / notes → RAG retrieval injects relevant chunks into each chat), **Example Responses** (Q&A pairs for few-shot), **Structured Personality form** (Tone/Do's/Don'ts/Example compiled into the prompt), **Topic Guardrails** (rules that activate by conversation topic). Estimated 8–10 days. Requires pgvector + embeddings pipeline.
+- ⏳ **Part 4 — Daily 6 AM digest email** via Resend + polish pass.
+- ⏳ **Part 1.9 — Privacy policy copy** (90-day retention + sensitive-category). Low priority until IG/ads launch.
+- ⏳ **Pixel_settings Supabase migration** — written in `supabase/migrations/20260422000001_pixel_settings.sql`. Jones to run in Supabase SQL editor when he has pixel IDs to plug in.
+
+### Strategic context (from the conversation that led to pause)
+
+Jones asked fundamental questions about whether we're building "a custom LLM" vs "a plugin." Clarified: **we use Claude Sonnet 4.6 via Vercel AI Gateway with a highly custom system prompt + full ownership of the surrounding product.** This is the same pattern every serious consumer AI product uses (Notion AI, Grammarly, Jasper, etc.). Custom model training costs $5–50M and wouldn't improve FINDGOD's experience — the "soul" of FINDGOD lives in the system prompt + knowledge library + brand experience. Plan 3.8 (AI Training 2.0) is specifically the workspace for Jones to dial in the voice without engineering help.
 
 ---
 
@@ -272,10 +291,14 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 - **Key files:**
   - `proxy.ts` — admin gate (session refresh + app_metadata.role + allowlist)
   - `lib/supabase/{server,client,middleware,service}.ts` — copies of main-app helpers
-  - `lib/overview.ts` — data layer for Overview stat cards + recent activity
-  - `lib/chats.ts` — data layer for Chats list + detail (fetches last 500 messages, aggregates in JS)
+  - `lib/overview.ts` — Overview stat cards + activity feed
+  - `lib/chats.ts` — Chats list + detail (fetches last 500 messages, aggregates in JS)
+  - `lib/subscribers.ts` — Subscribers table + enrichment (last activity, message count, admin flag)
+  - `lib/prompt-versions.ts` — AI Training active/history/author labels
+  - `lib/costs.ts` — token-length cost estimator walking messages chronologically per session
+  - `lib/pixel-settings.ts` — pixel provider metadata + fetch
   - `app/(app)/layout.tsx` — sidebar shell
-  - `app/(app)/overview/page.tsx` + `app/(app)/chats/[sessionId]/page.tsx`  + `app/(app)/chats/[sessionId]/assistant-turn.tsx` — live pages
+  - `app/(app)/overview/page.tsx` + `app/(app)/chats/[sessionId]/{page,assistant-turn}.tsx` + `app/(app)/subscribers/{page,subscribers-table}.tsx` + `app/(app)/prompt/{page,prompt-editor,actions}.tsx` + `app/(app)/costs/page.tsx` + `app/(app)/pixels/{page,pixel-row,actions}.tsx` + `app/(app)/settings/page.tsx` — every V1 page
 - **Deploy flow:** `git push` triggers Vercel auto-deploy on this repo (unlike main). Fallback: `vercel deploy --prod --yes` from the folder (authenticated as edge-vital).
 
 ---
@@ -293,9 +316,12 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `app/api/chat/reset/route.ts` | **Dev-only** free-chat-wall reset. GET returns HTML that clears both cookies + the `findgod_free_chat_used` localStorage flag + redirects home. Returns 404 in production. Usage: `http://localhost:3000/api/chat/reset`. |
 | `app/api/track/landed/route.ts` | Minimal POST endpoint fired once per session by `app/landed-tracker.tsx`. Writes `landed` event + sets `findgod_session_id` cookie if new. |
 | `app/landed-tracker.tsx` | Invisible client component — `useEffect` pings `/api/track/landed` once per mount, sessionStorage-deduped against StrictMode double-fire. Mounted in `app/page.tsx`. |
+| `app/pixels.tsx` | Server component that reads enabled pixels via `lib/pixels.ts` and renders Meta/GA4/TikTok tracking snippets via `next/script strategy="afterInteractive"`. Mounted at end of `<body>` in `app/layout.tsx`. Renders nothing when no pixels configured. |
 | `lib/active-system-prompt.ts` | Resolves the live system prompt. Reads active `prompt_versions` row from Supabase with 60s in-memory cache + in-flight dedupe. Falls back to `lib/findgod-system-prompt.ts` on any failure. This is where the admin dashboard's "AI Training" edits show up at runtime. |
-| `lib/supabase/service.ts` | Service-role Supabase client factory. Bypasses RLS — use ONLY server-side. Needed for writes to `messages`/`events`/`prompt_versions` (RLS service-only). |
-| `supabase/migrations/20260419000001_admin_dashboard_schema.sql` | Initial admin-dashboard schema. Run once against production via Supabase SQL editor. Creates `messages` (90-day TTL via pg_cron), `events`, `prompt_versions` with service-role-only RLS. |
+| `lib/pixels.ts` | Reads the `pixel_settings` table with a 5-min module-scoped cache. Returns only `enabled=true` rows with non-null `pixel_id`. Source for `app/pixels.tsx`. |
+| `lib/supabase/service.ts` | Service-role Supabase client factory. Bypasses RLS — use ONLY server-side. Needed for writes to `messages`/`events`/`prompt_versions`/`pixel_settings` (all RLS service-only). |
+| `supabase/migrations/20260419000001_admin_dashboard_schema.sql` | Initial admin-dashboard schema. Creates `messages` (90-day TTL via pg_cron), `events`, `prompt_versions` with service-role-only RLS. Run 2026-04-19. |
+| `supabase/migrations/20260422000001_pixel_settings.sql` | `pixel_settings` table — seeds one row per Meta/GA4/TikTok. **Not yet run** — waiting for Jones to have pixel IDs. |
 | `app/cursor-spotlight.tsx` | Cursor-following soft white glow (client, desktop only) |
 | `app/icon.svg` + `app/apple-icon.svg` | 888 Seal favicons |
 | `app/opengraph-image.tsx` | Dynamic 1200×630 OG share image. Reads TTFs from `public/fonts/` via `readFileSync` at module load. Primary headline "The world is noise. This isn't." + subhead + layered gold glow. |
