@@ -37,14 +37,16 @@
 |---|---|---|
 | **M0 — Foundation** | pgvector + 5 tables migration, `lib/prompt-compiler.ts` shim, 4-tab admin workspace | ✅ Shipped |
 | **M1 — Personality** | Structured form (Tone / Voice / Do's / Don'ts / Style) → markdown block appended to base prompt | ✅ Shipped |
-| **Block 1 — Safety net** | Compiler kill switch (per-stage feature flags) + cache-empty-on-error bug + router.refresh + field-length caps | ⏳ In progress |
-| **Block 2 — Security hardening** | Security headers on admin repo + BotID on admin server actions + `/api/track/landed` BotID + strip error.message from chat logs | ⏳ Queued |
-| **Block 3 — Perf + brand** | Parallelize pre-LLM awaits + dynamic-import react-markdown + memoize service-role Supabase client | ⏳ Queued |
-| **Block 4 — Design MUST-fixes** | Replace ComingSoon stubs + InscriptionDivider in admin header + kill ArrayPreview + branded AlertDialog for destructive actions | ⏳ Queued |
-| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval | ⏳ After Block 1-4 |
+| **Block 1 — Safety net** | Compiler kill switch (`feature_flags` table, per-stage flags) + cache-empty-on-error bug + router.refresh + field-length caps + URL/email rejection | ✅ Shipped |
+| **Block 2 — Security hardening** | Admin CSP/HSTS/XFO/Referrer/Permissions headers, BotID on all admin server actions + `/api/track/landed`, error.message stripped from Supabase error logs, admin auth callback sanitized | ✅ Shipped |
+| **Block 3 — Perf wins** | Service-role Supabase client memoized (~20-40ms/turn), chat route pre-LLM awaits parallelized (~100ms/turn), `react-markdown` dynamic-imported (~100KB off initial bundle), `EB_Garamond` + unused Archivo weights removed | ✅ Shipped |
+| **Phase A — Post-review fixes** | 7 surgical fixes from the post-Block-3 5-agent review: personality form label wiring, admin dropdown aria-label, red-error contrast, duplicate ComingSoon deleted, dead invalidate* exports removed, unused fonts dropped, grammar bug | ✅ Shipped |
+| **Block 4 — Design + a11y + copy + tech polish** | Original design scope (ComingSoon stubs, InscriptionDivider in admin, kill ArrayPreview, branded AlertDialog) expanded to roll in a11y (contrast pass, focus-visible utility, live regions for AI streaming + Publish/Rollback, aria-current, category panel keyboard, OTP error association), copy (signup value stack rewrite, voiced error strings), and tech extractions (ttl-cache, prompt-publish-utils) | ⏳ In progress |
+| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval. Requires: compiler stages parallelized, IVFFlat → HNSW, Anthropic prompt caching wired | ⏳ After Block 4 |
 | **M3 — Guardrails** | Topic-triggered directives | ⏳ After M2 |
 | **M4 — Knowledge / RAG** | PDF/text/URL upload → chunk → embed → vector retrieval per chat | ⏳ After M3 |
 | **M5 — Preview** | Live test chat against draft configuration | ⏳ After M4 |
+| **Tests (post-Block 4, pre-M2)** | Vitest + 7 high-value tests: kill switch, fail-open, cache TTL, compile shape, publish validation, chat-limit HMAC | ⏳ After Block 4 |
 
 **Decisions locked from the 5-agent review:**
 - Use HNSW index (not IVFFlat) for pgvector — needs migration amendment at M2
@@ -53,11 +55,16 @@
 - RAG "spotlighting" template: `<source id="X">…</source>` + explicit instruction that content is reference material, not instructions
 - Per-stage kill-switch flags so a single misbehaving stage can be disabled without reverting the whole compiler
 
-**Parked (known-acceptable today, revisit later):**
-- Demote-then-insert publish race in `personality/actions.ts` + `raw/actions.ts` — real concurrency issue but unreachable at N=1 admin. Fix with a Postgres RPC when admin #2 joins.
-- Admin list scan ceilings (`lib/subscribers.ts`, `lib/chats.ts`, `lib/costs.ts` hardcoded 500–5000 row limits). Will silently produce wrong numbers past those thresholds. Migrate to RPCs when weekly traffic crosses ~1000 messages.
+**Parked (known-acceptable today, revisit later) — see `~/.claude/projects/-Users-jonespersen-Desktop-Find-God/memory/project_parked_tasks.md` for full list + triggers:**
+- Demote-then-insert publish race in `personality/actions.ts` + `raw/actions.ts` — real concurrency issue but unreachable at N=1 admin.
+- Admin list scan ceilings — will silently produce wrong numbers past 500–5000 rows. Migrate to RPCs when weekly traffic crosses ~1000 messages.
+- Admin's `lib/supabase/service.ts` NOT memoized (main is) — acceptable at 1 admin.
+- Admin Overview 9-call Supabase fanout — consolidate to one RPC when traffic scales.
+- Shared types drift between main + admin repos — run `supabase gen types typescript` at 5+ shared tables.
 - Fleet-wide cache invalidation — 60s TTL is the contract.
-- UUID regex too loose — benign, Supabase 404s anyway.
+- UUID regex too loose — benign.
+- Touch targets below 44px on some interactive elements — revisit at mobile audit.
+- Skip links missing — low value at current layout complexity.
 
 ### Other pending / deferred
 

@@ -152,16 +152,16 @@ function InitialView({
           {" \u2014 "}no more three-message wall.
         </ValueItem>
         <ValueItem>
-          <strong className="font-semibold text-white">Remembered</strong>
-          {" \u2014 "}we&rsquo;ll greet you by name every time you come back.
+          <strong className="font-semibold text-white">Known by name</strong>
+          {" \u2014 "}you come back, it remembers.
         </ValueItem>
         <ValueItem>
           <strong className="font-semibold text-white">The Daily Word</strong>
           {" \u2014 "}one verse, one reflection, 6 AM every morning.
         </ValueItem>
         <ValueItem>
-          <strong className="font-semibold text-white">Zero spam.</strong>{" "}
-          Unsubscribe anytime.
+          <strong className="font-semibold text-white">Quiet inbox.</strong>{" "}
+          Leave whenever.
         </ValueItem>
       </ul>
 
@@ -207,8 +207,8 @@ function InitialView({
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {/* Fine print */}
-      <p className="text-[11px] uppercase tracking-[0.2em] text-white/30">
-        Free forever · Email only · 10 seconds
+      <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">
+        Free · Email only · No password
       </p>
     </div>
   );
@@ -267,6 +267,8 @@ function CodeView({
           maxLength={6}
           placeholder="000000"
           aria-label="6-digit code"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "otp-error" : undefined}
           className="w-full rounded-2xl border border-[#C4A87C]/25 bg-white/[0.04] px-6 py-5 text-center text-3xl font-medium tracking-[0.5em] text-white caret-[#C4A87C] shadow-[0_0_60px_rgba(196,168,124,0.06)_inset] backdrop-blur-sm transition-all focus:border-[#C4A87C]/60 focus:bg-white/[0.07] focus:shadow-[0_0_60px_rgba(196,168,124,0.15)_inset,0_0_80px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
           style={{
             fontFamily: "var(--font-jetbrains), ui-monospace, monospace",
@@ -282,9 +284,13 @@ function CodeView({
         </button>
       </form>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && (
+        <p id="otp-error" role="alert" className="text-xs text-red-400">
+          {error}
+        </p>
+      )}
 
-      <p className="text-[10px] uppercase tracking-[0.3em] text-white/35">
+      <p className="text-[10px] uppercase tracking-[0.3em] text-white/60">
         Didn&rsquo;t arrive? Check spam — or{" "}
         <ResendHint email={email} name={name} />
       </p>

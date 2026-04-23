@@ -23,7 +23,7 @@ export function InscriptionDivider({
     >
       <span className="h-px w-10 bg-white/15" />
       <span
-        className="text-[10px] uppercase tracking-[0.4em] text-white/40"
+        className="text-[10px] uppercase tracking-[0.4em] text-white/55"
         style={{ fontFamily: "var(--font-jetbrains), ui-monospace, monospace" }}
       >
         ΙΗΣΟΥΣ ≡ 888

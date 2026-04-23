@@ -317,9 +317,20 @@ export function ChatInterface() {
         </div>
       )}
 
-      {/* ===== MESSAGE LIST ===== */}
+      {/* ===== MESSAGE LIST =====
+          `role="log"` + `aria-live="polite"` announces AI responses to
+          screen readers as they stream in. `aria-relevant="additions"`
+          keeps the announcement scoped to new bubbles (not re-reads of
+          the whole list). Streaming assistant bubbles carry `aria-busy`
+          while in progress so AT waits for the final text. */}
       {hasMessages && (
-        <div className="flex flex-col gap-6 py-8">
+        <div
+          role="log"
+          aria-live="polite"
+          aria-relevant="additions"
+          aria-label="Chat transcript"
+          className="flex flex-col gap-6 py-8"
+        >
           {messages.map((m: UIMessage) => (
             <MessageBubble
               key={m.id}
@@ -327,6 +338,11 @@ export function ChatInterface() {
               disabled={choiceDisabled}
               onSelectChoice={handleChoice}
               onSomethingElse={handleSomethingElse}
+              isStreaming={
+                status === "streaming" &&
+                m.role === "assistant" &&
+                m.id === messages[messages.length - 1]?.id
+              }
             />
           ))}
           {status === "submitted" && <ThinkingIndicator />}
@@ -405,7 +421,7 @@ export function ChatInterface() {
                 style={{ animationDelay: "600ms" }}
               >
                 <p
-                  className="text-[10px] uppercase tracking-[0.35em] text-white/40"
+                  className="text-[10px] uppercase tracking-[0.35em] text-white/60"
                   style={{
                     fontFamily: "var(--font-jetbrains), ui-monospace, monospace",
                   }}
@@ -423,8 +439,10 @@ export function ChatInterface() {
                         }
                         disabled={status !== "ready"}
                         aria-expanded={active}
+                        aria-controls="category-panel"
+                        aria-haspopup="menu"
                         aria-label={`${cat.label} — ${cat.prompts.length} prompts`}
-                        className={`rounded-full border px-5 py-2 text-xs uppercase tracking-[0.2em] transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                        className={`focus-ring rounded-full border px-5 py-2 text-xs uppercase tracking-[0.2em] transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                           active
                             ? "-translate-y-px border-[#C4A87C]/60 bg-white/[0.08] text-white shadow-[0_4px_24px_rgba(196,168,124,0.15)]"
                             : "border-white/10 bg-white/[0.02] text-white/65 hover:-translate-y-px hover:border-[#C4A87C]/50 hover:bg-white/[0.07] hover:text-white hover:shadow-[0_4px_20px_rgba(196,168,124,0.08)]"
@@ -456,14 +474,14 @@ export function ChatInterface() {
           )}
 
           {error && (
-            <p className="text-xs text-red-400">
-              Something went wrong. Please try again.
+            <p role="alert" className="text-xs text-red-400">
+              That didn&rsquo;t land. Try again.
             </p>
           )}
 
           {/* Brand promise pillars — stacked on mobile, single line on desktop */}
           <div
-            className="animate-fade-up mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[10px] uppercase tracking-[0.25em] text-white/35"
+            className="animate-fade-up mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[10px] uppercase tracking-[0.25em] text-white/60"
             style={{
               fontFamily: "var(--font-inter)",
               animationDelay: "900ms",
@@ -588,7 +606,7 @@ function MultipleChoice({
             key={opt}
             onClick={() => onSelect(opt)}
             disabled={disabled}
-            className="group/choice flex items-center justify-between rounded-full border border-white/20 bg-white/[0.06] px-5 py-3.5 text-left text-[15px] text-white backdrop-blur-sm transition-all active:translate-y-px hover:-translate-y-px hover:border-[#C4A87C]/55 hover:bg-white/[0.11] hover:shadow-[0_6px_24px_rgba(196,168,124,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="focus-ring group/choice flex items-center justify-between rounded-full border border-white/20 bg-white/[0.06] px-5 py-3.5 text-left text-[15px] text-white backdrop-blur-sm transition-all active:translate-y-px hover:-translate-y-px hover:border-[#C4A87C]/55 hover:bg-white/[0.11] hover:shadow-[0_6px_24px_rgba(196,168,124,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
             style={{ fontFamily: "var(--font-inter)" }}
           >
             <span>{opt}</span>
@@ -603,7 +621,7 @@ function MultipleChoice({
         <button
           onClick={onSomethingElse}
           disabled={disabled}
-          className="mt-2 text-[14px] italic text-white/55 transition-colors hover:text-white/85 disabled:cursor-not-allowed disabled:opacity-40"
+          className="focus-ring mt-2 text-[14px] italic text-white/55 transition-colors hover:text-white/85 disabled:cursor-not-allowed disabled:opacity-40"
           style={{ fontFamily: "var(--font-inter)" }}
         >
           Or something else — type it below ↓
@@ -620,11 +638,13 @@ function MessageBubble({
   disabled,
   onSelectChoice,
   onSomethingElse,
+  isStreaming = false,
 }: {
   message: UIMessage;
   disabled: boolean;
   onSelectChoice: (text: string) => void;
   onSomethingElse: () => void;
+  isStreaming?: boolean;
 }) {
   const isUser = message.role === "user";
 
@@ -633,6 +653,7 @@ function MessageBubble({
       className={`flex w-full ${isUser ? "justify-end" : "justify-start"}`}
     >
       <div
+        aria-busy={!isUser && isStreaming ? true : undefined}
         className={`${
           isUser
             ? "max-w-[85%] rounded-2xl bg-white px-5 py-3 text-sm leading-relaxed text-black sm:text-base"
@@ -683,15 +704,15 @@ function MessageBubble({
  */
 function ThinkingIndicator() {
   return (
-    <div className="flex justify-start">
+    <div className="flex justify-start" role="status" aria-label="Thinking">
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-4">
         <span
+          aria-hidden
           className="animate-pulse text-[11px] uppercase tracking-[0.4em] text-white/55"
           style={{
             fontFamily: "var(--font-jetbrains), ui-monospace, monospace",
             animationDuration: "1.6s",
           }}
-          title="ΙΗΣΟΥΣ ≡ 888 — the isopsephy of Jesus"
         >
           ΙΗΣΟΥΣ ≡ 888
         </span>
@@ -833,12 +854,31 @@ function CategoryPanel({
   onClose: () => void;
   onPick: (text: string) => void;
 }) {
+  const firstPromptRef = useRef<HTMLButtonElement | null>(null);
+
+  // Move focus to the first prompt on open so keyboard users don't have
+  // to tab through chrome. Escape closes + returns focus to the trigger
+  // chip (the chip re-renders with active=false; browser restores focus
+  // to the most recent element with focus, which is the chip).
+  useEffect(() => {
+    firstPromptRef.current?.focus();
+  }, [category.label]);
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>): void {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onClose();
+    }
+  }
+
   return (
     <div
+      id="category-panel"
       className="animate-fade-up mt-4 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] backdrop-blur-md"
       style={{ animationDelay: "0ms" }}
       role="region"
       aria-label={`${category.label} prompts`}
+      onKeyDown={handleKeyDown}
     >
       <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
         <p
@@ -852,24 +892,25 @@ function CategoryPanel({
         <button
           onClick={onClose}
           aria-label="Close category"
-          className="text-sm text-white/30 transition-colors hover:text-white/70"
+          className="focus-ring rounded-full text-sm text-white/55 transition-colors hover:text-white"
         >
-          ✕
+          <span aria-hidden>✕</span>
         </button>
       </div>
       <ul className="divide-y divide-white/5">
-        {category.prompts.map((p) => (
+        {category.prompts.map((p, idx) => (
           <li key={p}>
             <button
+              ref={idx === 0 ? firstPromptRef : undefined}
               onClick={() => onPick(p)}
               disabled={disabled}
-              className="group/prompt flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[15px] leading-snug text-white/85 transition-colors hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="focus-ring group/prompt flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-[15px] leading-snug text-white/85 transition-colors hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:opacity-50"
               style={{ fontFamily: "var(--font-inter)" }}
             >
               <span>{p}</span>
               <span
                 aria-hidden
-                className="flex-none text-white/25 transition-colors group-hover/prompt:text-[#C4A87C]/70"
+                className="flex-none text-white/50 transition-colors group-hover/prompt:text-[#C4A87C]/80"
               >
                 →
               </span>

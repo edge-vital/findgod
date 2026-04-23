@@ -36,6 +36,20 @@ body {
   color: #ffffff;
 }
 
+/* ===========================================================
+   Focus ring — keyboard-only focus indicator for interactive
+   elements that otherwise rely on color/hover. Gold matches
+   the brand accent; the 2px ring + 2px offset against #050507
+   is > 3:1 contrast (WCAG 1.4.11 Non-text Contrast).
+   =========================================================== */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px #050507,
+    0 0 0 4px #c4a87c;
+  border-radius: 4px;
+}
+
 /* Respect user motion preferences — kill non-essential animations. */
 @media (prefers-reduced-motion: reduce) {
   *,

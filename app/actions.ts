@@ -57,7 +57,7 @@ export async function requestOtp(
     return {
       step: "error",
       prevStep: "idle",
-      message: "Something went wrong. Please try again.",
+      message: "Something broke on our end. One more try.",
     };
   }
 
@@ -123,7 +123,7 @@ export async function verifyOtp(
     return {
       step: "error",
       prevStep: "code",
-      message: "Something went wrong. Please try again.",
+      message: "Something broke on our end. One more try.",
     };
   }
 

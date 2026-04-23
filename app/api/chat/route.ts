@@ -269,7 +269,7 @@ export async function POST(req: Request): Promise<Response> {
         : "unknown error";
     console.error("[findgod/chat] Error:", summary);
     return new Response(
-      JSON.stringify({ error: "Something went wrong. Please try again." }),
+      JSON.stringify({ error: "Something broke on our end. One more try." }),
       {
         status: 500,
         headers: { "Content-Type": "application/json" },

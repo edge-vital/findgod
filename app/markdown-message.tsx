@@ -38,12 +38,12 @@ export default function MarkdownMessage({ text }: { text: string }) {
           </blockquote>
         ),
         ol: ({ children }) => (
-          <ol className="my-3 ml-5 list-decimal space-y-1.5 marker:text-white/40">
+          <ol className="my-3 ml-5 list-decimal space-y-1.5 marker:text-white/60">
             {children}
           </ol>
         ),
         ul: ({ children }) => (
-          <ul className="my-3 ml-5 list-disc space-y-1.5 marker:text-white/40">
+          <ul className="my-3 ml-5 list-disc space-y-1.5 marker:text-white/60">
             {children}
           </ul>
         ),

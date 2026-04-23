@@ -54,7 +54,7 @@ export default function Home() {
       <footer className="relative z-10 px-6 py-6 sm:px-10">
         <div className="mx-auto flex max-w-4xl items-center justify-center">
           <p
-            className="text-[11px] uppercase tracking-[0.25em] text-white/25"
+            className="text-[11px] uppercase tracking-[0.25em] text-white/55"
             style={{ fontFamily: "var(--font-jetbrains)" }}
           >
             © 2026 FINDGOD LLC

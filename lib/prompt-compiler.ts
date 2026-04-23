@@ -51,9 +51,17 @@ async function personalityStage(_ctx: CompileOptions): Promise<string> {
   return getPersonalitySection();
 }
 
+// NOTE: examplesStage / guardrailsStage / knowledgeStage are stubs until
+// M2-M4 ship. Their feature_flags rows (stage_examples_enabled, etc.)
+// are pre-seeded as enabled — flipping them to false today is a no-op
+// because the stage already returns "". That's intentional — the plumbing
+// stays ready so enabling a stage at M2 is a one-file-change, not a
+// migration.
+
 async function examplesStage(_ctx: CompileOptions): Promise<string> {
   // Milestone 2: tag match first, then top-N semantic from
-  // example_responses. Embeds userMessage via OpenAI.
+  // example_responses. Embeds userMessage via OpenAI — shared with
+  // knowledgeStage via CompileContext so M2+M4 share one embed call.
   return "";
 }
 
@@ -65,7 +73,9 @@ async function guardrailsStage(_ctx: CompileOptions): Promise<string> {
 
 async function knowledgeStage(_ctx: CompileOptions): Promise<string> {
   // Milestone 4: embed userMessage, call match_knowledge_chunks RPC,
-  // format top-K chunks as a "Source material" block.
+  // format top-K chunks as a "Source material" block with spotlighting
+  // (<source id="X">...</source>) to resist prompt injection from
+  // untrusted document content.
   return "";
 }
 

@@ -1,21 +1,18 @@
 import { createServiceClient } from "./supabase/service";
+import { makeCache } from "./ttl-cache";
 
 /**
  * Reads the active personality_config row and compiles it into a
  * markdown block that the prompt compiler appends to every chat turn.
  *
- * Cached per-instance with the same 60s TTL the legacy active-system-
- * prompt uses, so Fluid Compute warm instances hit Supabase roughly
- * once a minute per cold start.
+ * Per-instance 60s cache (via `lib/ttl-cache.ts`); Fluid Compute warm
+ * instances hit Supabase ~1x/minute per cold start.
  *
- * Empty string is returned when:
- *   - No active row exists (fresh install, or Jones disabled it by
- *     having no rows with is_active=true)
+ * Returns "" when:
+ *   - No active row exists
  *   - Every field is blank
- *   - Supabase read fails (swallowed — we fall back to the base prompt)
+ *   - Supabase read fails (swallowed by the cache helper)
  */
-
-const CACHE_TTL_MS = 60_000;
 
 type PersonalityRow = {
   tone: string | null;
@@ -24,14 +21,6 @@ type PersonalityRow = {
   donts: string[] | null;
   style_examples: string | null;
 };
-
-type CachedSection = {
-  value: string;
-  fetchedAt: number;
-};
-
-let cache: CachedSection | null = null;
-let inFlight: Promise<string> | null = null;
 
 function compile(row: PersonalityRow): string {
   const parts: string[] = [];
@@ -45,8 +34,6 @@ function compile(row: PersonalityRow): string {
     return "";
   }
 
-  // Clear banner so the model knows this block is authoritative and
-  // overrides any conflicting style guidance from earlier in the prompt.
   parts.push(
     "## Voice calibration\n" +
       "_The rules below are the live, admin-set voice. When they conflict with anything earlier in this prompt, follow these._",
@@ -55,19 +42,13 @@ function compile(row: PersonalityRow): string {
   if (tone) parts.push(`**Tone.** ${tone}`);
   if (voice) parts.push(`**Voice notes.**\n${voice}`);
   if (dos.length > 0) {
-    parts.push(
-      "**Always do:**\n" + dos.map((d) => `- ${d}`).join("\n"),
-    );
+    parts.push("**Always do:**\n" + dos.map((d) => `- ${d}`).join("\n"));
   }
   if (donts.length > 0) {
-    parts.push(
-      "**Never do:**\n" + donts.map((d) => `- ${d}`).join("\n"),
-    );
+    parts.push("**Never do:**\n" + donts.map((d) => `- ${d}`).join("\n"));
   }
   if (examples) {
-    parts.push(
-      "**Example responses that capture the voice:**\n" + examples,
-    );
+    parts.push("**Example responses that capture the voice:**\n" + examples);
   }
 
   return parts.join("\n\n");
@@ -89,35 +70,13 @@ async function fetchSection(): Promise<string> {
   return compile(data);
 }
 
+const personalityCache = makeCache<string>({
+  fetcher: fetchSection,
+  ttlMs: 60_000,
+  label: "findgod/personality-stage",
+});
+
 export async function getPersonalitySection(): Promise<string> {
-  const now = Date.now();
-  if (cache && now - cache.fetchedAt < CACHE_TTL_MS) {
-    return cache.value;
-  }
-
-  if (inFlight) return inFlight;
-
-  inFlight = (async () => {
-    try {
-      const value = await fetchSection();
-      cache = { value, fetchedAt: Date.now() };
-      return value;
-    } catch (e) {
-      console.error(
-        "[findgod/personality-stage] read failed, skipping section:",
-        e instanceof Error ? `${e.name}: ${e.message}` : "unknown error",
-      );
-      // Intentionally do NOT cache empty on error. A single transient
-      // Supabase blip used to silently disable the section for 60s here;
-      // now the next request retries. On sustained errors we log once
-      // per request (acceptable — if Supabase is down, many things break
-      // and the logs will reflect the real issue).
-      return "";
-    } finally {
-      inFlight = null;
-    }
-  })();
-
-  return inFlight;
+  const value = await personalityCache.get();
+  return value ?? "";
 }
-
