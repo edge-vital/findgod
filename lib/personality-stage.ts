@@ -107,9 +107,11 @@ export async function getPersonalitySection(): Promise<string> {
         "[findgod/personality-stage] read failed, skipping section:",
         e instanceof Error ? `${e.name}: ${e.message}` : "unknown error",
       );
-      // Cache the empty result briefly so we don't hammer Supabase on
-      // sustained errors. TTL still applies → next hit retries.
-      cache = { value: "", fetchedAt: Date.now() };
+      // Intentionally do NOT cache empty on error. A single transient
+      // Supabase blip used to silently disable the section for 60s here;
+      // now the next request retries. On sustained errors we log once
+      // per request (acceptable — if Supabase is down, many things break
+      // and the logs will reflect the real issue).
       return "";
     } finally {
       inFlight = null;

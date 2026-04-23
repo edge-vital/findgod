@@ -7,7 +7,13 @@
 
 ## 📍 Where we are right now
 
-**V1 admin dashboard is fully shipped.** findgod.com is live (public chat); admin.findgod.com is live with all 7 planned pages reading real data. No pages stubbed — every nav item renders a working experience.
+**AI Training 2.0 — M0 + M1 shipped 2026-04-23.** Admin `/prompt` is now a 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality tab is a real 5-field structured form that compiles into the live chat prompt within 60s of publish. Examples/Guardrails/Knowledge/Preview are on-brand stubs. Raw tab preserves the original single-textarea editor as the escape hatch.
+
+**Runtime prompt compiler** (`lib/prompt-compiler.ts` in main repo) replaces direct `getActiveSystemPrompt()` calls on the chat route. 4 sequential stages — Personality (LIVE), Examples, Guardrails, Knowledge (stubs). Each stage returns "" today except personality. Empty stages = identical behavior to pre-compiler.
+
+**Pre-M2 hardening in progress.** A 5-agent deep-dive on 2026-04-23 (Security / Code Review / Architecture / Design / Performance) surfaced a concrete Block 1-4 checklist that must ship before we touch M2 Examples. See "AI Training 2.0 status" below.
+
+**V1 admin dashboard is fully shipped.** findgod.com is live (public chat); admin.findgod.com is live with all 7 planned pages reading real data.
 
 ### V1 admin dashboard pages — all shipped 2026-04-22/23
 
@@ -16,7 +22,7 @@
 | **Overview** | 4 stat cards (Visitors / Started a chat / Signups / Messages) + 7-day window + % delta vs prior week + color-coded 10-row recent-activity feed. Empty-state prompt. |
 | **Subscribers** | Table of every verified signup (Supabase auth.users filtered to email_confirmed) + enrichment: last activity + message count + admin shield badge. Client-side search + CSV export (RFC 4180, date-stamped filename). |
 | **Chats** | List view (first question prominent, anonymous vs signed-in icon, turn count, last-active) + search across any message content (last 500 messages). Detail view is document-style: role tags + timestamps per turn, AI responses collapsed by default with preview + "Show full response" expand, amber "No AI response captured" card surfaces orphan user messages (different copy pre- vs post-persistence-fix). `choices` JSON parsed into a styled "Follow-up choice offered" chip card. |
-| **AI Training** | Raw-text editor pre-filled with currently-active compiled prompt + version history sidebar with one-click rollback. Confirms before publish / rollback. Server actions double-check `app_metadata.role='admin'`. Reuses the `prompt_versions` table; main app picks up changes within ~60s via `lib/active-system-prompt.ts` cache. |
+| **AI Training** | **Rebuilt 2026-04-23 as a 6-tab workspace.** Personality (structured 5-field form — LIVE), Examples / Guardrails / Knowledge / Preview (M2-M5 stubs), Raw (original editor preserved as escape hatch). Main app reads via new `lib/prompt-compiler.ts` which compiles personality + future stages into the base prompt every chat turn. See "AI Training 2.0 status" below for milestone rollout. |
 | **Costs** | 3 period cards (Today / 7d / 30d) with USD estimate + message count + anon-vs-authed share + input/output token totals. Pure-CSS 30-day daily bar chart (gold peaks). Plain-language methodology card + link to Vercel AI Gateway dashboard for authoritative numbers. Estimate is input_tokens × $3/M + output_tokens × $15/M (Sonnet 4.6 pricing), 4 chars/token, +3,500-token system overhead per call. |
 | **Pixels** | Paste-in-ready UI for Meta Pixel / GA4 / TikTok Pixel (standby — Jones doesn't have IDs yet). Main app `app/pixels.tsx` injects standard snippets via `next/script strategy="afterInteractive"` when a pixel is enabled + has a non-null ID. 5-min module-scoped cache on `lib/pixels.ts` so admin edits propagate to findgod.com within minutes. Zero IDs → zero script tags (exact current behavior). **⚠ Supabase `pixel_settings` migration file is written but NOT yet run** — the page will render but Save will error. Migration file: `supabase/migrations/20260422000001_pixel_settings.sql`. |
 | **Settings** | Read-only V1. Profile + admin email allowlist (from env) + daily digest placeholder + system info + sign-out button. |
@@ -25,9 +31,36 @@
 
 - **AI-response persistence race** — the chat route's `onFinish: ({text}) => void safeInsert(...)` fire-and-forget was racing Vercel serverless teardown and dropping ~42% of assistant responses (diagnosed via Supabase row-count imbalance: 12 user rows vs 7 assistant rows). Fix: `onFinish: async (...) => await safeInsert(...)`. AI SDK holds the stream open until onFinish resolves, which keeps the function alive. Commit `0c91bb1`. See "Don't repeat" #17. The admin Chats detail surfaces pre-fix historical gaps with an amber "No AI response captured" card — historical responses unrecoverable, they existed only as streamed tokens.
 
-### Pending / deferred
+### AI Training 2.0 status (2026-04-23)
 
-- ⏳ **Part 3.8 — AI Training 2.0** (deferred after user strategic pause). Jones wants a tabbed workspace: **Knowledge Library** (upload PDFs / links / notes → RAG retrieval injects relevant chunks into each chat), **Example Responses** (Q&A pairs for few-shot), **Structured Personality form** (Tone/Do's/Don'ts/Example compiled into the prompt), **Topic Guardrails** (rules that activate by conversation topic). Estimated 8–10 days. Requires pgvector + embeddings pipeline.
+| Milestone | What it adds | Status |
+|---|---|---|
+| **M0 — Foundation** | pgvector + 5 tables migration, `lib/prompt-compiler.ts` shim, 4-tab admin workspace | ✅ Shipped |
+| **M1 — Personality** | Structured form (Tone / Voice / Do's / Don'ts / Style) → markdown block appended to base prompt | ✅ Shipped |
+| **Block 1 — Safety net** | Compiler kill switch (per-stage feature flags) + cache-empty-on-error bug + router.refresh + field-length caps | ⏳ In progress |
+| **Block 2 — Security hardening** | Security headers on admin repo + BotID on admin server actions + `/api/track/landed` BotID + strip error.message from chat logs | ⏳ Queued |
+| **Block 3 — Perf + brand** | Parallelize pre-LLM awaits + dynamic-import react-markdown + memoize service-role Supabase client | ⏳ Queued |
+| **Block 4 — Design MUST-fixes** | Replace ComingSoon stubs + InscriptionDivider in admin header + kill ArrayPreview + branded AlertDialog for destructive actions | ⏳ Queued |
+| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval | ⏳ After Block 1-4 |
+| **M3 — Guardrails** | Topic-triggered directives | ⏳ After M2 |
+| **M4 — Knowledge / RAG** | PDF/text/URL upload → chunk → embed → vector retrieval per chat | ⏳ After M3 |
+| **M5 — Preview** | Live test chat against draft configuration | ⏳ After M4 |
+
+**Decisions locked from the 5-agent review:**
+- Use HNSW index (not IVFFlat) for pgvector — needs migration amendment at M2
+- Single shared embedding across Examples + Knowledge (one OpenAI call per turn, not two)
+- Anthropic prompt caching with `cache_control` breakpoint before RAG chunks — design in from M2
+- RAG "spotlighting" template: `<source id="X">…</source>` + explicit instruction that content is reference material, not instructions
+- Per-stage kill-switch flags so a single misbehaving stage can be disabled without reverting the whole compiler
+
+**Parked (known-acceptable today, revisit later):**
+- Demote-then-insert publish race in `personality/actions.ts` + `raw/actions.ts` — real concurrency issue but unreachable at N=1 admin. Fix with a Postgres RPC when admin #2 joins.
+- Admin list scan ceilings (`lib/subscribers.ts`, `lib/chats.ts`, `lib/costs.ts` hardcoded 500–5000 row limits). Will silently produce wrong numbers past those thresholds. Migrate to RPCs when weekly traffic crosses ~1000 messages.
+- Fleet-wide cache invalidation — 60s TTL is the contract.
+- UUID regex too loose — benign, Supabase 404s anyway.
+
+### Other pending / deferred
+
 - ⏳ **Part 4 — Daily 6 AM digest email** via Resend + polish pass.
 - ⏳ **Part 1.9 — Privacy policy copy** (90-day retention + sensitive-category). Low priority until IG/ads launch.
 - ⏳ **Pixel_settings Supabase migration** — written in `supabase/migrations/20260422000001_pixel_settings.sql`. Jones to run in Supabase SQL editor when he has pixel IDs to plug in.
@@ -48,7 +81,7 @@ Jones asked fundamental questions about whether we're building "a custom LLM" vs
 - ✅ 1.5 — `landed` event via `/api/track/landed` pinged by `app/landed-tracker.tsx` on mount; `signed_up` event in `app/actions.ts::verifyOtp` + user_id backfill onto prior anonymous messages/events so signed-up users see their full history
 - ✅ 1.6 — **Pivoted from Edge Config → Supabase for the live prompt** (Hobby tier caps Edge Config at 8KB, our prompt is 12KB). `lib/active-system-prompt.ts` reads the active row from `prompt_versions` with a 60s in-memory cache. Seed row id: `f0b838f6-941a-4aac-9aac-b9e299c0b309`. Falls back to `lib/findgod-system-prompt.ts` if Supabase read fails.
 - ✅ 1.8 — `jon@findgod.com` (Supabase user id `9a48abc3-3f53-4221-976a-967ec7db2ba5`) flipped to admin via **`app_metadata.role = 'admin'`** (NOT user_metadata — see "Don't repeat" #14). Set via Supabase admin API with service role key.
-- ⏳ 1.7 — Beehiiv auto-sync: code is already wired in `app/actions.ts::verifyOtp` (was from 2026-04-18), just waiting on `BEEHIIV_API_KEY` + `BEEHIIV_PUBLICATION_ID` env vars being set in Vercel.
+- ✅ 1.7 — Beehiiv auto-sync: `BEEHIIV_API_KEY` + `BEEHIIV_PUBLICATION_ID` confirmed set in Vercel as of 2026-04-23 screenshot (Production scope). Verified OTP signups mirror to the Daily Word list on next deploy.
 - ⏳ 1.9 — Privacy policy copy update (90-day retention + sensitive-category disclosure). Low priority until IG/ads launch.
 
 **Part 2 (admin project shell) is gated on Jones sharing a UX/UI reference screenshot** so the visual direction is locked before build.
@@ -270,7 +303,7 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 10. **Gmail MX records are sacred.** Web DNS changes touch A + CNAME only.
 11. **Agent Browser is blocked by BotID in production.** agent-browser's Chrome for Testing trips `navigator.webdriver === true` and similar fingerprints. For automated UI verification, always test against localhost (BotID is a no-op in dev).
 12. **A stray `.git` folder at `/Users/jonespersen/.git` silently broke local git ops.** `git status` from inside the project reported the entire home directory as untracked because git walked up and found that orphan `.git`. Cleaned up 2026-04-19. Same class of issue as the stray home-folder `package-lock.json` that crashed Turbopack. **Never run `git init` outside the project folder.** If a `git status` ever shows files from outside the project, stop and check `git rev-parse --show-toplevel`.
-13. **Vercel dashboard "connect GitHub" may not backfill.** After wiring `edge-vital/findgod` to the Vercel project, Vercel did not auto-deploy from the first push we'd already made. Current deploys still trigger via `vercel deploy --prod` until we confirm the next git push fires a dashboard deployment. Don't assume auto-deploy works until a commit hash (not `vercel deploy`) shows up as the source in the Deployments tab.
+13. **~~Vercel dashboard "connect GitHub" may not backfill.~~** ✅ Resolved 2026-04-23. Main repo `edge-vital/findgod` is now confirmed auto-deploying from GitHub (commit `32768e0` pushed and Vercel built it in 39s with no CLI). Both repos (main + admin) now use `git push` as the normal deploy path. Keep the CLI fallback (`vercel deploy --prod --yes`) documented under Common Operations for emergencies.
 14. **Vercel Edge Config on Hobby tier caps at 8KB total store size.** The FINDGOD AI system prompt is ~12KB, so it cannot fit. We tried on 2026-04-21 and got rejected by the API. We pivoted to Supabase-backed prompts with a 60s in-memory cache (`lib/active-system-prompt.ts`). Don't re-introduce Edge Config for the prompt unless the project upgrades to Pro (512KB per store) and there's a latency reason to move off Supabase. The empty Edge Config store `findgod-prompt` (id `ecfg_zgcan95qbl2acj5frdupdfvavea3`) still exists in Vercel — harmless, free, can be deleted via dashboard.
 15. **Use `app_metadata`, NEVER `user_metadata`, for authorization flags.** `user_metadata` is writable by the authenticated user via the Supabase JS SDK — any signed-in user could flip their own `is_admin` flag. `app_metadata` is only settable via the service role key. The admin role for `jon@findgod.com` is stored as `app_metadata.role='admin'`. The admin dashboard gate must check `app_metadata.role`, not `user_metadata.role`.
 16. **Fluid Compute module cache ≠ persistent.** The `lib/active-system-prompt.ts` in-memory cache is per-instance. Cold starts re-read Supabase. That's fine (30-50ms, amortized across ~60s × many requests) but don't assume it's guaranteed-hot. If we ever need fleet-wide cache invalidation after a prompt publish, we'll need Redis/KV or an Edge Config pointer — not in scope yet.
@@ -317,11 +350,14 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `app/api/track/landed/route.ts` | Minimal POST endpoint fired once per session by `app/landed-tracker.tsx`. Writes `landed` event + sets `findgod_session_id` cookie if new. |
 | `app/landed-tracker.tsx` | Invisible client component — `useEffect` pings `/api/track/landed` once per mount, sessionStorage-deduped against StrictMode double-fire. Mounted in `app/page.tsx`. |
 | `app/pixels.tsx` | Server component that reads enabled pixels via `lib/pixels.ts` and renders Meta/GA4/TikTok tracking snippets via `next/script strategy="afterInteractive"`. Mounted at end of `<body>` in `app/layout.tsx`. Renders nothing when no pixels configured. |
-| `lib/active-system-prompt.ts` | Resolves the live system prompt. Reads active `prompt_versions` row from Supabase with 60s in-memory cache + in-flight dedupe. Falls back to `lib/findgod-system-prompt.ts` on any failure. This is where the admin dashboard's "AI Training" edits show up at runtime. |
+| `lib/prompt-compiler.ts` | **Entry point for the runtime prompt.** Chat route calls `compileSystemPrompt({ firstName, userMessage })`. Runs 4 stages (personality → examples → guardrails → knowledge) and appends their output to the base prompt. M0+M1 shipped 2026-04-23; M2-M4 stages are stubs returning "". |
+| `lib/personality-stage.ts` | Milestone 1 stage. Reads active `personality_config` row, compiles tone/voice/dos/donts/style_examples into a markdown "Voice calibration" block. 60s per-instance cache + in-flight dedupe. ⚠ Known bug: caches empty-on-error — fixing in Block 1. |
+| `lib/active-system-prompt.ts` | Resolves the live system prompt base text. Reads active `prompt_versions` row from Supabase with 60s in-memory cache + in-flight dedupe. Falls back to `lib/findgod-system-prompt.ts` on any failure. Called by the prompt compiler. |
 | `lib/pixels.ts` | Reads the `pixel_settings` table with a 5-min module-scoped cache. Returns only `enabled=true` rows with non-null `pixel_id`. Source for `app/pixels.tsx`. |
 | `lib/supabase/service.ts` | Service-role Supabase client factory. Bypasses RLS — use ONLY server-side. Needed for writes to `messages`/`events`/`prompt_versions`/`pixel_settings` (all RLS service-only). |
 | `supabase/migrations/20260419000001_admin_dashboard_schema.sql` | Initial admin-dashboard schema. Creates `messages` (90-day TTL via pg_cron), `events`, `prompt_versions` with service-role-only RLS. Run 2026-04-19. |
 | `supabase/migrations/20260422000001_pixel_settings.sql` | `pixel_settings` table — seeds one row per Meta/GA4/TikTok. **Not yet run** — waiting for Jones to have pixel IDs. |
+| `supabase/migrations/20260423000001_ai_training_v2.sql` | AI Training 2.0 schema. Installs pgvector, creates `personality_config` + `example_responses` + `guardrails` + `knowledge_documents` + `knowledge_chunks`, + 2 RPCs (`match_knowledge_chunks`, `match_example_responses`). Run 2026-04-23. Uses IVFFlat — will migrate to HNSW before M2/M4 per agent review. |
 | `app/cursor-spotlight.tsx` | Cursor-following soft white glow (client, desktop only) |
 | `app/icon.svg` + `app/apple-icon.svg` | 888 Seal favicons |
 | `app/opengraph-image.tsx` | Dynamic 1200×630 OG share image. Reads TTFs from `public/fonts/` via `readFileSync` at module load. Primary headline "The world is noise. This isn't." + subhead + layered gold glow. |

@@ -1,4 +1,5 @@
 import { getActiveSystemPrompt } from "./active-system-prompt";
+import { getAllFlags, type FlagKey } from "./feature-flags";
 import { getPersonalitySection } from "./personality-stage";
 
 /**
@@ -12,22 +13,20 @@ import { getPersonalitySection } from "./personality-stage";
  *   3. Guardrails         — topic-triggered directives (politics, crisis, etc.)
  *   4. Knowledge library  — pgvector RAG over uploaded PDFs/notes/URLs
  *
- * Each milestone adds one stage. Until a stage ships, its hook is a no-op
- * and we fall through to the legacy `prompt_versions` compiled_text row —
- * so the main chat route can call `compileSystemPrompt()` today without
- * waiting for the full system to be built.
+ * Each milestone adds one stage. Until a stage ships, its hook is a no-op.
+ *
+ * Kill switches live in the `feature_flags` Supabase table:
+ *   - compiler_v2_enabled       — master switch; off = legacy path (base prompt only)
+ *   - stage_personality_enabled — skip personality stage
+ *   - stage_examples_enabled    — skip examples stage
+ *   - stage_guardrails_enabled  — skip guardrails stage
+ *   - stage_knowledge_enabled   — skip knowledge stage
+ *
+ * Flags fail open: Supabase outage or missing rows = compiler runs normally.
+ * Only an explicit `false` disables a stage. Cached 60s per instance.
  *
  * Stages run in order (personality → examples → guardrails → knowledge).
  * Each returns a string appended to the base; empty strings are skipped.
- *
- * Per-turn inputs:
- *   firstName    — greeting preamble ("You are speaking with {firstName}...")
- *   userMessage  — the latest user turn, used for:
- *                    · few-shot retrieval (semantic similarity)
- *                    · guardrail trigger matching
- *                    · knowledge chunk retrieval
- *
- * Milestone 0 (current): stages are stubs; output equals the legacy prompt.
  */
 
 export type CompileOptions = {
@@ -38,10 +37,15 @@ export type CompileOptions = {
 // Each stage is async so future stages that hit Supabase/OpenAI fit the
 // same signature. The compiler runs them in sequence — most stages are
 // cheap and serial is easier to reason about than juggling parallel
-// Supabase reads. If latency matters later we can parallelize the ones
-// that don't depend on each other.
+// Supabase reads. Block 3 of the pre-M2 hardening will parallelize
+// independent stages; keeping serial until then.
 
 type Stage = (ctx: CompileOptions) => Promise<string>;
+
+type StageDef = {
+  flag: FlagKey;
+  run: Stage;
+};
 
 async function personalityStage(_ctx: CompileOptions): Promise<string> {
   return getPersonalitySection();
@@ -65,11 +69,11 @@ async function knowledgeStage(_ctx: CompileOptions): Promise<string> {
   return "";
 }
 
-const STAGES: Stage[] = [
-  personalityStage,
-  examplesStage,
-  guardrailsStage,
-  knowledgeStage,
+const STAGES: StageDef[] = [
+  { flag: "stage_personality_enabled", run: personalityStage },
+  { flag: "stage_examples_enabled",    run: examplesStage },
+  { flag: "stage_guardrails_enabled",  run: guardrailsStage },
+  { flag: "stage_knowledge_enabled",   run: knowledgeStage },
 ];
 
 export async function compileSystemPrompt(
@@ -77,9 +81,17 @@ export async function compileSystemPrompt(
 ): Promise<string> {
   const base = await getActiveSystemPrompt({ firstName: opts.firstName });
 
+  // Master kill switch. Explicit false = legacy path; anything else
+  // (true, undefined, read error) keeps the compiler running.
+  const flags = await getAllFlags();
+  if (flags.compiler_v2_enabled === false) {
+    return base;
+  }
+
   const additions: string[] = [];
   for (const stage of STAGES) {
-    const out = await stage(opts);
+    if (flags[stage.flag] === false) continue;
+    const out = await stage.run(opts);
     if (out && out.trim().length > 0) {
       additions.push(out.trim());
     }
