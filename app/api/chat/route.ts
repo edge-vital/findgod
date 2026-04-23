@@ -196,10 +196,17 @@ export async function POST(req: Request): Promise<Response> {
           ],
         },
       },
-      onFinish: ({ text }) => {
+      onFinish: async ({ text }) => {
         // Persist the assistant response once streaming completes.
+        //
+        // IMPORTANT: await this. The AI SDK keeps the response stream
+        // open until onFinish resolves, which in turn keeps the
+        // serverless function alive. Fire-and-forget (`void safeInsert`)
+        // races the function teardown and dropped ~40% of assistant
+        // responses in practice (diagnosed 2026-04-22 via Supabase row
+        // counts: 12 user msgs vs 7 assistant msgs).
         if (text) {
-          void safeInsert("messages", {
+          await safeInsert("messages", {
             conversation_id: conversationId,
             session_id: sessionId,
             user_id: userId,
