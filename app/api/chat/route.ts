@@ -96,8 +96,27 @@ async function safeInsert(
  */
 export async function POST(req: Request): Promise<Response> {
   try {
-    // ── 1. Bot check (Vercel BotID) ──────────────────────────────
-    const verification = await checkBotId();
+    // ── Session id (sync cookie read) ────────────────────────────
+    const { sessionId, isNew: isNewSession } = getOrCreateSessionId(req);
+
+    // ── Fire 3 independent async tasks in parallel ───────────────
+    // BotID verification, Supabase user lookup, and body parse have
+    // no dependencies on each other. Serial awaits were adding ~100ms
+    // to first-token latency for no benefit. We still await BotID
+    // first to fail fast on bots (the other two complete in the
+    // background and their results are discarded if BotID fails).
+    const botPromise = checkBotId();
+    const authPromise = (async () => {
+      const client = await createClient();
+      const {
+        data: { user: u },
+      } = await client.auth.getUser();
+      return { client, user: u };
+    })();
+    const bodyPromise = req.json() as Promise<{ messages: UIMessage[] }>;
+
+    // ── 1. Bot check (Vercel BotID) — fail fast ──────────────────
+    const verification = await botPromise;
     if (verification.isBot) {
       return new Response(JSON.stringify({ error: "Access denied." }), {
         status: 403,
@@ -105,14 +124,8 @@ export async function POST(req: Request): Promise<Response> {
       });
     }
 
-    // ── Session id (per-visitor, used to group messages for admin views) ──
-    const { sessionId, isNew: isNewSession } = getOrCreateSessionId(req);
-
     // ── 2. Supabase auth: authenticated users bypass the limit ───
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const { client: supabase, user } = await authPromise;
 
     let firstName: string | null = null;
     let setCookies: string[] | null = null;
@@ -147,7 +160,7 @@ export async function POST(req: Request): Promise<Response> {
       setCookies = buildSetCookies(count + 1, limit);
     }
 
-    const { messages }: { messages: UIMessage[] } = await req.json();
+    const { messages } = await bodyPromise;
 
     // Pull the most recent user message for persistence. UIMessage parts
     // can hold text + other blocks; we only persist text content.

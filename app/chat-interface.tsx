@@ -2,11 +2,22 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
+import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { InscriptionDivider } from "./inscription-divider";
 import { SignupForm } from "./signup-form";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
+
+/**
+ * `MarkdownMessage` is dynamically imported so the react-markdown +
+ * remark-gfm + unified/mdast/micromark dep graph (~100KB gzipped) only
+ * hits the client when an AI message actually renders — not on initial
+ * page load, when most visitors haven't even clicked Send yet.
+ */
+const MarkdownMessage = dynamic(() => import("./markdown-message"), {
+  ssr: false,
+  loading: () => null,
+});
 
 /**
  * Fallback limit used before the first server response writes the real
@@ -491,35 +502,6 @@ function SendArrowIcon() {
   );
 }
 
-/* ================= INSCRIPTION DIVIDER ================= */
-
-/**
- * The ΙΗΣΟΥΣ ≡ 888 inscription, rendered as a horizontal divider.
- * Used wherever a section break would otherwise be a plain line.
- * Hover for the historical context.
- */
-export function InscriptionDivider({
-  className = "my-6",
-}: {
-  className?: string;
-}) {
-  return (
-    <div
-      className={`flex items-center justify-center gap-3 ${className}`}
-      title="ΙΗΣΟΥΣ ≡ 888 — the isopsephy of Jesus (Irenaeus, c. 180 AD)"
-    >
-      <span className="h-px w-10 bg-white/15" />
-      <span
-        className="text-[10px] uppercase tracking-[0.4em] text-white/40"
-        style={{ fontFamily: "var(--font-jetbrains), ui-monospace, monospace" }}
-      >
-        ΙΗΣΟΥΣ ≡ 888
-      </span>
-      <span className="h-px w-10 bg-white/15" />
-    </div>
-  );
-}
-
 /* ================= CHOICES PARSING ================= */
 
 type Choices = { question: string; options: string[] };
@@ -690,87 +672,6 @@ function MessageBubble({
         })}
       </div>
     </div>
-  );
-}
-
-/* ================= MARKDOWN RENDERER ================= */
-
-function MarkdownMessage({ text }: { text: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      components={{
-        // Paragraphs — consistent spacing
-        p: ({ children }) => (
-          <p className="mb-3 leading-[1.7] last:mb-0">{children}</p>
-        ),
-        // Bold — the declarative verdicts + action headers
-        strong: ({ children }) => (
-          <strong className="font-semibold text-white">{children}</strong>
-        ),
-        // Italics — scripture quotes
-        em: ({ children }) => <em className="italic">{children}</em>,
-        // Blockquotes — scripture block. Locked: ST06 system italic (Georgia serif).
-        blockquote: ({ children }) => (
-          <blockquote
-            className="my-5 border-l-2 border-[#C4A87C]/60 bg-white/[0.02] py-3 pl-5 pr-4 text-[17px] italic leading-[1.55] text-white/85"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-          >
-            {children}
-          </blockquote>
-        ),
-        // Ordered lists — action steps
-        ol: ({ children }) => (
-          <ol className="my-3 ml-5 list-decimal space-y-1.5 marker:text-white/40">
-            {children}
-          </ol>
-        ),
-        // Unordered lists — bullet lists
-        ul: ({ children }) => (
-          <ul className="my-3 ml-5 list-disc space-y-1.5 marker:text-white/40">
-            {children}
-          </ul>
-        ),
-        li: ({ children }) => <li className="leading-[1.7]">{children}</li>,
-        // Horizontal rule — section breaks. Use the 888 inscription as the divider.
-        hr: () => <InscriptionDivider />,
-        // Inline code (rare, but safe defaults)
-        code: ({ children }) => (
-          <code className="rounded bg-white/[0.08] px-1.5 py-0.5 text-sm font-mono">
-            {children}
-          </code>
-        ),
-        // External links (rare in responses)
-        a: ({ href, children }) => (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="underline decoration-white/40 underline-offset-2 hover:text-white hover:decoration-white/80"
-          >
-            {children}
-          </a>
-        ),
-        // Headers — shouldn't appear (system prompt forbids them), but render safely
-        h1: ({ children }) => (
-          <h1 className="mb-2 mt-4 text-lg font-semibold text-white">
-            {children}
-          </h1>
-        ),
-        h2: ({ children }) => (
-          <h2 className="mb-2 mt-4 text-base font-semibold text-white">
-            {children}
-          </h2>
-        ),
-        h3: ({ children }) => (
-          <h3 className="mb-2 mt-3 text-base font-semibold text-white">
-            {children}
-          </h3>
-        ),
-      }}
-    >
-      {text}
-    </ReactMarkdown>
   );
 }
 
