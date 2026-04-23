@@ -39,7 +39,9 @@ export async function getEnabledPixels(): Promise<EnabledPixel[]> {
       .eq("enabled", true);
 
     if (error) {
-      console.error("[findgod/pixels] read error:", error.message);
+      // Log error.code only — PostgREST error.message can include the
+      // offending row's values on constraint violations.
+      console.error("[findgod/pixels] read error:", error.code ?? "unknown");
       return cache?.value ?? [];
     }
 
