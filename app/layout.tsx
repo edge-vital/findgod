@@ -6,6 +6,7 @@ import {
   JetBrains_Mono,
 } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { Pixels } from "./pixels";
 import "./globals.css";
 
 const inter = Inter({
@@ -96,6 +97,7 @@ export default function RootLayout({
       <body className="min-h-full bg-[#050507] text-white font-sans">
         {children}
         <Analytics />
+        <Pixels />
       </body>
     </html>
   );
