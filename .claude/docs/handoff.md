@@ -350,7 +350,8 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `app/` | Routes + route-colocated client components (chat-interface, signup-form, page.tsx, landed-tracker, cursor-spotlight, pixels) |
 | `app/api/chat/route.ts` | The streaming chat endpoint (BotID → auth → compiler → streamText) |
 | `app/api/track/landed/route.ts` | Funnel "landed" event (BotID-protected) |
-| `components/inscription-divider.tsx` + `components/markdown-message.tsx` | Shared primitives — inscription used across chat + signup + markdown renderer, markdown dynamic-imported so its ~100KB bundle doesn't hit bouncing visitors |
+| `components/` | Shared primitives: `inscription-divider.tsx` (brand section-break, used chat + signup + markdown), `markdown-message.tsx` (dynamic-imported react-markdown renderer), `f-cross.tsx` (locked `CM03` brand mark). |
+| `app/chat/` | Extracted chat UI — `categories.ts` (data), `category-panel.tsx`, `multiple-choice.tsx` (Choices + parseChoices + buttons), `message-bubble.tsx` (bubble + ThinkingIndicator), `greetings.tsx` (Live + Returning + pools), `instagram-cta.tsx`, `signup-blocker.tsx`. Parent `app/chat-interface.tsx` is the orchestrator (458 lines). |
 | `lib/` | Runtime helpers: `prompt-compiler`, `personality-stage`, `feature-flags`, `active-system-prompt`, `ttl-cache`, `chat-limit`, `pixels`, `findgod-system-prompt` (fallback) |
 | `lib/supabase/` | `client.ts` (browser), `server.ts` (route/action), `middleware.ts` (proxy), `service.ts` (service-role, memoized) |
 | `supabase/migrations/` | 4 migrations: admin dashboard schema, pixel settings, AI Training 2.0, feature flags |
@@ -400,7 +401,7 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `supabase/migrations/20260422000001_pixel_settings.sql` | `pixel_settings` table — seeds one row per Meta/GA4/TikTok. **Not yet run** — waiting for Jones to have pixel IDs. |
 | `supabase/migrations/20260423000001_ai_training_v2.sql` | AI Training 2.0 schema. Installs pgvector, creates `personality_config` + `example_responses` + `guardrails` + `knowledge_documents` + `knowledge_chunks`, + 2 RPCs (`match_knowledge_chunks`, `match_example_responses`). Run 2026-04-23. Uses IVFFlat — will migrate to HNSW before M2/M4 per agent review. |
 | `supabase/migrations/20260423000002_feature_flags.sql` | Runtime kill switches. `feature_flags` table with 5 seed rows (master + 4 per-stage). Service-role only. Run 2026-04-23. |
-| `components/inscription-divider.tsx` + `components/markdown-message.tsx` | Inscription is the brand's section-break motif (used in chat + signup + inside AI responses). Markdown renderer is dynamic-imported so react-markdown's ~100KB bundle doesn't hit bouncing visitors. |
+| `components/inscription-divider.tsx` + `components/markdown-message.tsx` + `components/f-cross.tsx` | Inscription is the brand's section-break motif. Markdown renderer is dynamic-imported so react-markdown's ~100KB bundle doesn't hit bouncing visitors. F-Cross is the locked `CM03` brand mark (future hat embroidery, app icon, etc). |
 | `app/cursor-spotlight.tsx` | Cursor-following soft white glow (client, desktop only) |
 | `app/icon.svg` + `app/apple-icon.svg` | 888 Seal favicons |
 | `app/opengraph-image.tsx` | Dynamic 1200×630 OG share image. Reads TTFs from `public/fonts/` via `readFileSync` at module load. Primary headline "The world is noise. This isn't." + subhead + layered gold glow. |
