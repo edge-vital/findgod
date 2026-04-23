@@ -1,13 +1,25 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-04-21 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-04-22 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**findgod.com is LIVE + admin-dashboard prereqs ~90% done.** Today (2026-04-21) we knocked out 6 of 9 sub-tasks in Part 1 of [The FINDGOD Command Center plan](~/.claude/plans/rustling-jingling-whale.md) — every prereq that had to land in the main FINDGOD repo before we stand up the separate admin project.
+**Two live projects: findgod.com (public) + admin.findgod.com (command center).** Today (2026-04-22) shipped the admin dashboard shell plus the first two real pages. Highlights:
+
+- ✅ **admin.findgod.com live** at its own Vercel project / GitHub repo (`edge-vital/findgod-admin`). Auth-gated via Supabase magic link + `app_metadata.role='admin'` + email allowlist. jon@findgod.com is the only admin.
+- ✅ **Overview page** — 4 live stat cards (Visitors / Started a chat / Signups / Messages) with 7-day window + % delta vs prior week + recent-activity feed pulling real rows from Supabase.
+- ✅ **Chats page** — list + collapsible detail. Detail view has "Visitor asked / FINDGOD responded" role tags with timestamps, assistant messages collapsed by default with preview + "Show full response" expand, and an amber "No AI response captured" card rendered in place of any orphan user message (with different copy for pre- vs post-persistence-fix turns).
+- ✅ **Persistence bug found + fixed.** The chat route was using `void safeInsert(...)` fire-and-forget inside `onFinish`, which raced Vercel's serverless teardown and dropped ~42% of assistant responses. Fix was to make `onFinish` async and `await` the insert. Commit `0c91bb1` in `edge-vital/findgod`. Diagnosed via Supabase row-count imbalance (12 user rows vs 7 assistant rows at time of discovery).
+- ✅ **Beehiiv auto-sync live.** API key + Publication ID set in Vercel env on the main findgod project. Old key (posted briefly in chat) was rotated + verified revoked via 401 probe.
+
+**Still ahead in Part 3:** Subscribers, AI Training, Costs, Pixels, Settings.
+
+---
+
+**Earlier (2026-04-21) we knocked out 6 of 9 sub-tasks in Part 1 of [The FINDGOD Command Center plan](~/.claude/plans/rustling-jingling-whale.md) — every prereq that had to land in the main FINDGOD repo before we stood up the separate admin project.**
 
 **Part 1 status:**
 - ✅ 1.1 — Supabase migration (`messages`, `events`, `prompt_versions` tables with service-role-only RLS + 90-day pg_cron TTL). File: `supabase/migrations/20260419000001_admin_dashboard_schema.sql`
@@ -51,6 +63,7 @@ Earlier (2026-04-18) shipped: security pack, dynamic cliffhanger + multi-choice 
 | URL | What it is |
 |---|---|
 | **https://findgod.com** | Production site with AI chat + OTP auth |
+| **https://admin.findgod.com** | Internal admin dashboard. Magic-link login, admin-gated. |
 | **https://findgod.com/opengraph-image** | Custom 1200×630 share image (Archivo Black wordmark + gold glow) |
 | **https://findgod.com/concepts, /v2, /v3, /v4** | Brand direction galleries |
 | **https://findgod.com/concepts/open** | Live brainstorm page (locked-marks recap; tagline finalists removed since TL07 is now locked) |
@@ -242,10 +255,32 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 14. **Vercel Edge Config on Hobby tier caps at 8KB total store size.** The FINDGOD AI system prompt is ~12KB, so it cannot fit. We tried on 2026-04-21 and got rejected by the API. We pivoted to Supabase-backed prompts with a 60s in-memory cache (`lib/active-system-prompt.ts`). Don't re-introduce Edge Config for the prompt unless the project upgrades to Pro (512KB per store) and there's a latency reason to move off Supabase. The empty Edge Config store `findgod-prompt` (id `ecfg_zgcan95qbl2acj5frdupdfvavea3`) still exists in Vercel — harmless, free, can be deleted via dashboard.
 15. **Use `app_metadata`, NEVER `user_metadata`, for authorization flags.** `user_metadata` is writable by the authenticated user via the Supabase JS SDK — any signed-in user could flip their own `is_admin` flag. `app_metadata` is only settable via the service role key. The admin role for `jon@findgod.com` is stored as `app_metadata.role='admin'`. The admin dashboard gate must check `app_metadata.role`, not `user_metadata.role`.
 16. **Fluid Compute module cache ≠ persistent.** The `lib/active-system-prompt.ts` in-memory cache is per-instance. Cold starts re-read Supabase. That's fine (30-50ms, amortized across ~60s × many requests) but don't assume it's guaranteed-hot. If we ever need fleet-wide cache invalidation after a prompt publish, we'll need Redis/KV or an Edge Config pointer — not in scope yet.
+17. **Never fire-and-forget DB writes from `onFinish` (or any post-stream callback) on Vercel serverless.** The chat route's `onFinish: ({ text }) => { void safeInsert(...) }` lost ~42% of assistant responses because Vercel tore the function down before the unawaited insert completed. Fix: `onFinish: async ({ text }) => { await safeInsert(...) }`. The AI SDK keeps the stream open until onFinish resolves, which keeps the function alive. This applies to ANY persistence that runs in onFinish / cleanup / post-response hooks — always await.
+18. **Vercel seat enforcement rejects deploys whose commit-author email isn't on the Vercel team.** Our main repo uses per-repo author `ecom888@proton.me`. The admin repo uses `leads@vitaledgeleads.com` (Jones's Vercel-registered email) because GitHub-triggered deploys on the admin project hit `seatBlock.blockCode="COMMIT_AUTHOR_REQUIRED"` otherwise. Main-repo deploys via CLI don't trip this. If GitHub auto-deploy on the main repo ever activates, its commit author needs to be on the Vercel team too — either switch the main repo's identity or add ecom888 as an alternate email in vercel.com/account/emails.
 
 ---
 
-## 📂 Key files to know
+## 🏛️ Admin repo (parallel project)
+
+- **Folder:** `/Users/jonespersen/Desktop/findgod-admin/` (sibling to `Find God/`; note lowercase, no spaces — npm naming)
+- **GitHub:** `github.com/edge-vital/findgod-admin` (private)
+- **Vercel project:** `findgod-admin` in same team `edge-vitals-projects`
+- **Domain:** `admin.findgod.com` (A record `admin → 76.76.21.21` at GoDaddy)
+- **Per-repo git identity:** Jones Persen / leads@vitaledgeleads.com (Vercel seat enforcement — see #18 below)
+- **Shares Supabase** project `vxrqsbvejzonapamnivu` with the main app; reads via service-role client.
+- **Stack:** Next.js 16 + Tailwind 4 + shadcn/ui (base-ui) + TypeScript. Same fonts/theme tokens as main app (Inter/Archivo/JetBrains + FINDGOD jet/bone/gold palette).
+- **Key files:**
+  - `proxy.ts` — admin gate (session refresh + app_metadata.role + allowlist)
+  - `lib/supabase/{server,client,middleware,service}.ts` — copies of main-app helpers
+  - `lib/overview.ts` — data layer for Overview stat cards + recent activity
+  - `lib/chats.ts` — data layer for Chats list + detail (fetches last 500 messages, aggregates in JS)
+  - `app/(app)/layout.tsx` — sidebar shell
+  - `app/(app)/overview/page.tsx` + `app/(app)/chats/[sessionId]/page.tsx`  + `app/(app)/chats/[sessionId]/assistant-turn.tsx` — live pages
+- **Deploy flow:** `git push` triggers Vercel auto-deploy on this repo (unlike main). Fallback: `vercel deploy --prod --yes` from the folder (authenticated as edge-vital).
+
+---
+
+## 📂 Key files to know (main findgod repo)
 
 | File | Purpose |
 |---|---|
