@@ -6,6 +6,15 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "findgod-admin",
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "cd /Users/jonespersen/Desktop/findgod-admin && npm run dev -- --port 3001"
+      ],
+      "port": 3001
     }
   ]
 }

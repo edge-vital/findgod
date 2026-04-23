@@ -6,7 +6,7 @@ import {
 } from "ai";
 import { checkBotId } from "botid/server";
 import { randomUUID } from "node:crypto";
-import { getActiveSystemPrompt } from "@/lib/active-system-prompt";
+import { compileSystemPrompt } from "@/lib/prompt-compiler";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
 import {
@@ -181,7 +181,7 @@ export async function POST(req: Request): Promise<Response> {
 
     const result = streamText({
       model: "anthropic/claude-sonnet-4.6",
-      system: await getActiveSystemPrompt({ firstName }),
+      system: await compileSystemPrompt({ firstName, userMessage: lastUserText }),
       messages: await convertToModelMessages(messages),
       experimental_transform: smoothStream({
         chunking: "word",
