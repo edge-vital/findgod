@@ -25,8 +25,9 @@ import { getPersonalitySection } from "./personality-stage";
  * Flags fail open: Supabase outage or missing rows = compiler runs normally.
  * Only an explicit `false` disables a stage. Cached 60s per instance.
  *
- * Stages run in order (personality → examples → guardrails → knowledge).
- * Each returns a string appended to the base; empty strings are skipped.
+ * Stages run concurrently via Promise.all. Output ordering follows the
+ * STAGES array position (personality → examples → guardrails → knowledge),
+ * not completion order — Promise.all preserves input ordering.
  */
 
 export type CompileOptions = {
@@ -34,20 +35,48 @@ export type CompileOptions = {
   userMessage?: string | null;
 };
 
-// Each stage is async so future stages that hit Supabase/OpenAI fit the
-// same signature. The compiler runs them in sequence — most stages are
-// cheap and serial is easier to reason about than juggling parallel
-// Supabase reads. Block 3 of the pre-M2 hardening will parallelize
-// independent stages; keeping serial until then.
+/**
+ * Runtime context passed to every stage. Holds read-only inputs plus lazy,
+ * memoized shared resources (the user-message embedding, once M2/M4 ship).
+ *
+ * The embedding is shared so Examples (M2) and Knowledge (M4) trigger ONE
+ * OpenAI call per chat turn, not two. First caller starts the fetch;
+ * subsequent callers await the same promise. Stubs that don't need it
+ * simply never call getEmbedding().
+ */
+export type CompileContext = {
+  firstName: string | null;
+  userMessage: string | null;
+  getEmbedding: () => Promise<number[] | null>;
+};
 
-type Stage = (ctx: CompileOptions) => Promise<string>;
+function createContext(opts: CompileOptions): CompileContext {
+  let embeddingPromise: Promise<number[] | null> | null = null;
+  return {
+    firstName: opts.firstName ?? null,
+    userMessage: opts.userMessage ?? null,
+    getEmbedding(): Promise<number[] | null> {
+      if (embeddingPromise) return embeddingPromise;
+      embeddingPromise = (async () => {
+        // M2 swaps this for a call into lib/embeddings.ts. Until then
+        // every semantic-retrieval stage is a stub, so returning null
+        // is correct — a stage that would have used the embedding just
+        // returns "" and the compiler skips it.
+        return null;
+      })();
+      return embeddingPromise;
+    },
+  };
+}
+
+type Stage = (ctx: CompileContext) => Promise<string>;
 
 type StageDef = {
   flag: FlagKey;
   run: Stage;
 };
 
-async function personalityStage(_ctx: CompileOptions): Promise<string> {
+async function personalityStage(_ctx: CompileContext): Promise<string> {
   return getPersonalitySection();
 }
 
@@ -58,21 +87,21 @@ async function personalityStage(_ctx: CompileOptions): Promise<string> {
 // stays ready so enabling a stage at M2 is a one-file-change, not a
 // migration.
 
-async function examplesStage(_ctx: CompileOptions): Promise<string> {
-  // Milestone 2: tag match first, then top-N semantic from
-  // example_responses. Embeds userMessage via OpenAI — shared with
-  // knowledgeStage via CompileContext so M2+M4 share one embed call.
+async function examplesStage(_ctx: CompileContext): Promise<string> {
+  // Milestone 2: tag match first, then top-N semantic via
+  // match_example_responses RPC. Uses ctx.getEmbedding() — shared with
+  // knowledgeStage so M2+M4 share one embed call per chat turn.
   return "";
 }
 
-async function guardrailsStage(_ctx: CompileOptions): Promise<string> {
+async function guardrailsStage(_ctx: CompileContext): Promise<string> {
   // Milestone 3: always_active rules + trigger_keywords match on
-  // userMessage (lowercased). Priority orders multiple matches.
+  // ctx.userMessage (lowercased). Priority orders multiple matches.
   return "";
 }
 
-async function knowledgeStage(_ctx: CompileOptions): Promise<string> {
-  // Milestone 4: embed userMessage, call match_knowledge_chunks RPC,
+async function knowledgeStage(_ctx: CompileContext): Promise<string> {
+  // Milestone 4: ctx.getEmbedding() + match_knowledge_chunks RPC,
   // format top-K chunks as a "Source material" block with spotlighting
   // (<source id="X">...</source>) to resist prompt injection from
   // untrusted document content.
@@ -89,23 +118,36 @@ const STAGES: StageDef[] = [
 export async function compileSystemPrompt(
   opts: CompileOptions = {},
 ): Promise<string> {
-  const base = await getActiveSystemPrompt({ firstName: opts.firstName });
+  // Base prompt and flag map are independent Supabase reads — fetch them
+  // concurrently. On a warm ttl-cache hit both resolve in <1ms; on cold
+  // start this saves ~30ms of serial latency vs. the previous ordering.
+  const [base, flags] = await Promise.all([
+    getActiveSystemPrompt({ firstName: opts.firstName }),
+    getAllFlags(),
+  ]);
 
   // Master kill switch. Explicit false = legacy path; anything else
   // (true, undefined, read error) keeps the compiler running.
-  const flags = await getAllFlags();
   if (flags.compiler_v2_enabled === false) {
     return base;
   }
 
-  const additions: string[] = [];
-  for (const stage of STAGES) {
-    if (flags[stage.flag] === false) continue;
-    const out = await stage.run(opts);
-    if (out && out.trim().length > 0) {
-      additions.push(out.trim());
-    }
-  }
+  const ctx = createContext(opts);
+
+  // Run enabled stages concurrently. Disabled stages short-circuit to ""
+  // without invoking `stage.run`, so per-stage kill switches still skip
+  // all work (this matters once stages do real Supabase / OpenAI I/O).
+  // Promise.all preserves input ordering, so `additions` stays in
+  // STAGES order regardless of which stage resolves first.
+  const results = await Promise.all(
+    STAGES.map((stage) =>
+      flags[stage.flag] === false ? Promise.resolve("") : stage.run(ctx),
+    ),
+  );
+
+  const additions = results
+    .map((r) => (r ?? "").trim())
+    .filter((r) => r.length > 0);
 
   if (additions.length === 0) return base;
   return base + "\n\n" + additions.join("\n\n");
