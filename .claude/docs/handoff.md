@@ -1,17 +1,17 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-04-23 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-04-24 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**AI Training 2.0 — M0 + M1 shipped 2026-04-23.** Admin `/prompt` is now a 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality tab is a real 5-field structured form that compiles into the live chat prompt within 60s of publish. Examples/Guardrails/Knowledge/Preview are on-brand stubs. Raw tab preserves the original single-textarea editor as the escape hatch.
+**AI Training 2.0 — M0 + M1 shipped 2026-04-23. Tests + all three M2 prereqs shipped 2026-04-24. M2 Examples is now unblocked.** Admin `/prompt` is the 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality is LIVE as a structured 5-field form. Examples/Guardrails/Knowledge/Preview remain brand-voiced stubs. Raw tab preserves the original single-textarea editor as the escape hatch.
 
-**Runtime prompt compiler** (`lib/prompt-compiler.ts` in main repo) replaces direct `getActiveSystemPrompt()` calls on the chat route. 4 sequential stages — Personality (LIVE), Examples, Guardrails, Knowledge (stubs). Each stage returns "" today except personality. Empty stages = identical behavior to pre-compiler.
+**Runtime prompt compiler** (`lib/prompt-compiler.ts` in main repo) replaces direct `getActiveSystemPrompt()` calls on the chat route. 4 stages running **concurrently via Promise.all** — Personality (LIVE), Examples, Guardrails, Knowledge (stubs). Each stage returns "" today except personality. Empty stages = identical behavior to pre-compiler. Shared `CompileContext` with a lazy-memoized `getEmbedding()` so Examples (M2) and Knowledge (M4) will share ONE OpenAI call per chat turn once they ship.
 
-**Pre-M2 hardening complete as of 2026-04-23.** Three rounds of agent review (initial 5-agent deep-dive + post-Block-3 5-agent re-verification + post-Block-2 3-agent review) drove Blocks 1-4 + Phase A. Foundation is solid. Next step is Vitest + 7 tests, then M2 Examples with the M2 prereqs (parallelize compiler stages, IVFFlat → HNSW, Anthropic prompt caching).
+**Pre-M2 hardening + M2 prereqs complete as of 2026-04-24.** Three rounds of agent review drove Blocks 1-4 + Phase A (all 2026-04-23). Then 2026-04-24: Vitest + 7 safety tests (commit `5fd16e9`), compiler parallelization (`b4fb70e`), pgvector IVFFlat → HNSW migration (`c3eeb41`, ran in Supabase SQL editor), Anthropic prompt caching via AI Gateway `caching: "auto"` (`e52086c`). Two-agent re-audit confirmed clean ship with one known tradeoff parked: firstName preamble at the start of the system prompt fragments the Anthropic cache per-authenticated-user (anon users still share one cache entry). Fix deferred to M2 build where we're already touching prompt structure.
 
 **V1 admin dashboard is fully shipped.** findgod.com is live (public chat); admin.findgod.com is live with all 7 planned pages reading real data.
 
@@ -42,8 +42,11 @@
 | **Block 3 — Perf wins** | Service-role Supabase client memoized (~20-40ms/turn), chat route pre-LLM awaits parallelized (~100ms/turn), `react-markdown` dynamic-imported (~100KB off initial bundle), `EB_Garamond` + unused Archivo weights removed | ✅ Shipped |
 | **Phase A — Post-review fixes** | 7 surgical fixes from the post-Block-3 5-agent review: personality form label wiring, admin dropdown aria-label, red-error contrast, duplicate ComingSoon deleted, dead invalidate* exports removed, unused fonts dropped, grammar bug | ✅ Shipped |
 | **Block 4 — Design + a11y + copy + tech polish** | ComingSoon stubs rebuilt in brand voice (scripture anchors), InscriptionDivider in admin header + login, ArrayPreview duplication killed, branded AlertDialog replaces 6 `confirm()` sites, `.focus-ring` utility site-wide, mechanical contrast pass (`text-white/25-40` → `/55-60`), AI streaming live region, publish/rollback live regions, aria-current on sidebar + tabs, category panel keyboard wiring, OTP error association, signup value stack rewrite, voiced error strings, `lib/ttl-cache.ts` + `lib/prompt-publish-utils.ts` extractions | ✅ Shipped |
-| **Tests (next)** | Vitest + 7 high-value tests: kill switch, fail-open, cache TTL, compile shape, publish validation, chat-limit HMAC. Requires installing `vitest` + `vite-tsconfig-paths` dev deps. | ⏳ Next |
-| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval. Requires: compiler stages parallelized, IVFFlat → HNSW, Anthropic prompt caching wired | ⏳ After tests |
+| **Tests — Vitest + 7 safety tests** | TTL cache expiry + in-flight dedupe (2), compiler master + per-stage kill + fail-open (3), personality markdown compile shape (1), chat-limit HMAC tamper reject (1). Commit `5fd16e9`. `npm test` runs all in ~250ms. | ✅ Shipped 2026-04-24 |
+| **M2 prereq — parallelize compiler stages + CompileContext** | `Promise.all` over STAGES; shared lazy-memoized `getEmbedding()` so Examples + Knowledge will hit OpenAI once per turn. Base prompt + flag map also fetched concurrently. Commit `b4fb70e`. | ✅ Shipped 2026-04-24 |
+| **M2 prereq — pgvector IVFFlat → HNSW** | `20260423000003_pgvector_hnsw.sql` — `m=16, ef_construction=64`, cosine ops preserved. Dropped + recreated both embedding indexes while tables empty. Commit `c3eeb41`. Ran in Supabase SQL editor. | ✅ Shipped 2026-04-24 |
+| **M2 prereq — Anthropic prompt caching** | `caching: "auto"` under `providerOptions.gateway` in `app/api/chat/route.ts`. AI Gateway auto-inserts `cache_control: { type: "ephemeral" }` at end of static system content. ~90% cost reduction on repeat turns; first turn per unique prefix pays cache-write cost. Commit `e52086c`. | ✅ Shipped 2026-04-24 |
+| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval. All prereqs met. Build: (1) `OPENAI_API_KEY` in both Vercel projects, (2) `lib/embeddings.ts`, (3) real `examplesStage` in compiler, (4) admin Examples tab CRUD, (5) end-to-end smoke. | ⏳ Next |
 | **M3 — Guardrails** | Topic-triggered directives | ⏳ After M2 |
 | **M4 — Knowledge / RAG** | PDF/text/URL upload → chunk → embed → vector retrieval per chat | ⏳ After M3 |
 | **M5 — Preview** | Live test chat against draft configuration | ⏳ After M4 |
@@ -56,6 +59,7 @@
 - Per-stage kill-switch flags so a single misbehaving stage can be disabled without reverting the whole compiler
 
 **Parked (known-acceptable today, revisit later) — see `~/.claude/projects/-Users-jonespersen-Desktop-Find-God/memory/project_parked_tasks.md` for full list + triggers:**
+- **firstName cache fragmentation** (new 2026-04-24) — `buildNamedPreamble(firstName)` in `lib/active-system-prompt.ts` prepends a per-user line to the system prompt, placed BEFORE the gateway's automatic cache breakpoint. Each authenticated user therefore gets their own Anthropic cache bucket instead of sharing one fleet-wide. Anon users all share one entry (no firstName). Impact: ~90% cost reduction is per-user, not fleet-wide. Fix during M2 build by moving firstName to a user-message context line after the cache breakpoint. Trigger: authenticated user base crosses ~50 and cache-write costs become visible.
 - Demote-then-insert publish race in `personality/actions.ts` + `raw/actions.ts` — real concurrency issue but unreachable at N=1 admin.
 - Admin list scan ceilings — will silently produce wrong numbers past 500–5000 rows. Migrate to RPCs when weekly traffic crosses ~1000 messages.
 - Admin's `lib/supabase/service.ts` NOT memoized (main is) — acceptable at 1 admin.
@@ -65,6 +69,7 @@
 - UUID regex too loose — benign.
 - Touch targets below 44px on some interactive elements — revisit at mobile audit.
 - Skip links missing — low value at current layout complexity.
+- Missing tests for stage-parallel timing + `getEmbedding()` memoization + end-to-end `/api/chat` — add alongside M2 when real code paths exist to test.
 
 ### Other pending / deferred
 
@@ -399,8 +404,10 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `lib/supabase/service.ts` | Service-role Supabase client factory. Bypasses RLS — use ONLY server-side. Needed for writes to `messages`/`events`/`prompt_versions`/`pixel_settings` (all RLS service-only). |
 | `supabase/migrations/20260419000001_admin_dashboard_schema.sql` | Initial admin-dashboard schema. Creates `messages` (90-day TTL via pg_cron), `events`, `prompt_versions` with service-role-only RLS. Run 2026-04-19. |
 | `supabase/migrations/20260422000001_pixel_settings.sql` | `pixel_settings` table — seeds one row per Meta/GA4/TikTok. **Not yet run** — waiting for Jones to have pixel IDs. |
-| `supabase/migrations/20260423000001_ai_training_v2.sql` | AI Training 2.0 schema. Installs pgvector, creates `personality_config` + `example_responses` + `guardrails` + `knowledge_documents` + `knowledge_chunks`, + 2 RPCs (`match_knowledge_chunks`, `match_example_responses`). Run 2026-04-23. Uses IVFFlat — will migrate to HNSW before M2/M4 per agent review. |
+| `supabase/migrations/20260423000001_ai_training_v2.sql` | AI Training 2.0 schema. Installs pgvector, creates `personality_config` + `example_responses` + `guardrails` + `knowledge_documents` + `knowledge_chunks`, + 2 RPCs (`match_knowledge_chunks`, `match_example_responses`). Run 2026-04-23. Shipped with IVFFlat; superseded by migration `20260423000003` below. |
 | `supabase/migrations/20260423000002_feature_flags.sql` | Runtime kill switches. `feature_flags` table with 5 seed rows (master + 4 per-stage). Service-role only. Run 2026-04-23. |
+| `supabase/migrations/20260423000003_pgvector_hnsw.sql` | Swaps both pgvector indexes (`example_responses_embedding_idx`, `knowledge_chunks_embedding_idx`) from IVFFlat to HNSW. `m=16, ef_construction=64`. Cosine ops preserved. Run 2026-04-24 in Supabase SQL editor (Supabase flagged DROP as destructive, confirmed safe because tables were empty). Only safe to re-run BEFORE M2 data lands. |
+| `tests/*.test.ts` + `vitest.config.ts` | 7 Vitest safety tests — TTL cache (2), compiler kill switches + fail-open (3), personality compile shape (1), chat-limit HMAC (1). Run with `npm test`. Added 2026-04-24. Not yet hooked into CI. |
 | `components/inscription-divider.tsx` + `components/markdown-message.tsx` + `components/f-cross.tsx` | Inscription is the brand's section-break motif. Markdown renderer is dynamic-imported so react-markdown's ~100KB bundle doesn't hit bouncing visitors. F-Cross is the locked `CM03` brand mark (future hat embroidery, app icon, etc). |
 | `app/cursor-spotlight.tsx` | Cursor-following soft white glow (client, desktop only) |
 | `app/icon.svg` + `app/apple-icon.svg` | 888 Seal favicons |
@@ -459,6 +466,14 @@ npm run dev -- --port 3847
 ```bash
 cd "/Users/jonespersen/Desktop/Find God"
 npx tsc --noEmit
+```
+
+**Run the Vitest safety suite:**
+```bash
+cd "/Users/jonespersen/Desktop/Find God"
+npm test
+# 7 tests, ~250ms. Covers compiler kill switches, TTL cache, personality
+# compile shape, chat-limit HMAC. Not in CI — run locally before large changes.
 ```
 
 **Production build (catches OG generation issues):**
