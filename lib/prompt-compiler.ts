@@ -1,4 +1,6 @@
 import { getActiveSystemPrompt } from "./active-system-prompt";
+import { embed } from "./embeddings";
+import { examplesExist, getExamplesSection } from "./examples-stage";
 import { getAllFlags, type FlagKey } from "./feature-flags";
 import { getPersonalitySection } from "./personality-stage";
 
@@ -50,7 +52,13 @@ export type CompileContext = {
   getEmbedding: () => Promise<number[] | null>;
 };
 
-function createContext(opts: CompileOptions): CompileContext {
+/**
+ * @internal Exported for test coverage of `getEmbedding` memoization
+ * across concurrent stage callers. Production code must always go
+ * through `compileSystemPrompt` — it handles kill switches, flags,
+ * and stage orchestration that a bare context does not.
+ */
+export function createContext(opts: CompileOptions): CompileContext {
   let embeddingPromise: Promise<number[] | null> | null = null;
   return {
     firstName: opts.firstName ?? null,
@@ -58,11 +66,9 @@ function createContext(opts: CompileOptions): CompileContext {
     getEmbedding(): Promise<number[] | null> {
       if (embeddingPromise) return embeddingPromise;
       embeddingPromise = (async () => {
-        // M2 swaps this for a call into lib/embeddings.ts. Until then
-        // every semantic-retrieval stage is a stub, so returning null
-        // is correct — a stage that would have used the embedding just
-        // returns "" and the compiler skips it.
-        return null;
+        const msg = opts.userMessage?.trim();
+        if (!msg) return null;
+        return embed(msg);
       })();
       return embeddingPromise;
     },
@@ -80,18 +86,22 @@ async function personalityStage(_ctx: CompileContext): Promise<string> {
   return getPersonalitySection();
 }
 
-// NOTE: examplesStage / guardrailsStage / knowledgeStage are stubs until
-// M2-M4 ship. Their feature_flags rows (stage_examples_enabled, etc.)
-// are pre-seeded as enabled — flipping them to false today is a no-op
-// because the stage already returns "". That's intentional — the plumbing
-// stays ready so enabling a stage at M2 is a one-file-change, not a
-// migration.
+// NOTE: guardrailsStage / knowledgeStage are stubs until M3-M4 ship.
+// Their feature_flags rows (stage_guardrails_enabled, etc.) are
+// pre-seeded as enabled — flipping them to false today is a no-op
+// because the stage already returns "". That's intentional — the
+// plumbing stays ready so enabling a stage at M3 is a one-file-change,
+// not a migration.
 
-async function examplesStage(_ctx: CompileContext): Promise<string> {
-  // Milestone 2: tag match first, then top-N semantic via
-  // match_example_responses RPC. Uses ctx.getEmbedding() — shared with
-  // knowledgeStage so M2+M4 share one embed call per chat turn.
-  return "";
+async function examplesStage(ctx: CompileContext): Promise<string> {
+  // Short-circuit when the table is empty — avoids the embed call's
+  // ~100-200ms and OpenAI tokens while Jones hasn't seeded any examples
+  // yet. existenceCache TTL is 60s, so a freshly-added first example
+  // activates within one cache cycle.
+  if (!(await examplesExist())) return "";
+
+  const embedding = await ctx.getEmbedding();
+  return getExamplesSection(embedding);
 }
 
 async function guardrailsStage(_ctx: CompileContext): Promise<string> {
@@ -104,7 +114,8 @@ async function knowledgeStage(_ctx: CompileContext): Promise<string> {
   // Milestone 4: ctx.getEmbedding() + match_knowledge_chunks RPC,
   // format top-K chunks as a "Source material" block with spotlighting
   // (<source id="X">...</source>) to resist prompt injection from
-  // untrusted document content.
+  // untrusted document content. Uses the same ctx.getEmbedding() as
+  // examplesStage — one OpenAI call per chat turn shared across both.
   return "";
 }
 
