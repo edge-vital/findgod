@@ -211,6 +211,19 @@ export async function POST(req: Request): Promise<Response> {
       }),
       providerOptions: {
         gateway: {
+          // Anthropic prompt caching via AI Gateway. `caching: "auto"` tells
+          // the gateway to add a `cache_control: { type: "ephemeral" }`
+          // breakpoint at the end of our static content (the system prompt).
+          // On a cache hit, Anthropic charges ~10% of normal input-token
+          // price for the cached prefix — a ~90% cost reduction on the
+          // ~12KB base prompt that every turn carries.
+          //
+          // Safe for our compiler output: the appended personality section
+          // is stable for 60s via ttl-cache, so cache hit rate stays high.
+          // When M4 RAG ships, the dynamic chunks should go AFTER the
+          // system prompt (in a user message or separate block) to keep
+          // this cache breakpoint useful.
+          caching: "auto",
           tags: [
             "feature:chat",
             "surface:landing",
