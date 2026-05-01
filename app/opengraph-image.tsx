@@ -7,7 +7,7 @@ import { ImageResponse } from "next/og";
 // URL gets shared. Rendered once, cached heavily at the CDN edge.
 
 export const alt =
-  "FINDGOD — The world is noise. This isn't. Scripture-anchored for the man still searching.";
+  "FINDGOD — The world is noise. This isn't. Scripture-anchored for the searching soul.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -174,7 +174,7 @@ export default async function Image() {
             textAlign: "center",
           }}
         >
-          Scripture-anchored · For the man still searching
+          Scripture-anchored · For the searching soul
         </div>
 
         {/* Bottom — findgod.com */}

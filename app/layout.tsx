@@ -55,11 +55,11 @@ function getSiteUrl(): string {
 export const metadata: Metadata = {
   title: "FINDGOD — The world is noise. This isn't.",
   description:
-    "Scripture-anchored AI companion for the man still searching. Free to chat. Iron sharpens iron.",
+    "Scripture-anchored AI companion for those still searching. Free to chat. Iron sharpens iron.",
   metadataBase: new URL(getSiteUrl()),
   openGraph: {
     title: "FINDGOD — The world is noise. This isn't.",
-    description: "Scripture-anchored. For the man still searching.",
+    description: "Scripture-anchored. For the searching soul.",
     type: "website",
     siteName: "FINDGOD",
     url: "https://findgod.com",
@@ -69,7 +69,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "FINDGOD — The world is noise. This isn't.",
-    description: "Scripture-anchored. For the man still searching.",
+    description: "Scripture-anchored. For the searching soul.",
   },
   robots: {
     index: true,

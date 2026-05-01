@@ -308,7 +308,7 @@ function SuccessView({ firstName }: { firstName: string }) {
         className="max-w-md text-center text-2xl italic text-white/90"
         style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
       >
-        {firstName ? `You\u2019re in, ${firstName}.` : "You\u2019re in, brother."}
+        {firstName ? `You\u2019re in, ${firstName}.` : "You\u2019re in. Welcome."}
       </p>
       <p
         className="text-[11px] uppercase tracking-[0.35em] text-[#C4A87C]/70"

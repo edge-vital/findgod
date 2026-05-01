@@ -84,8 +84,16 @@ Direct. Ancient. Cinematic. Quiet confidence. Never sells itself.
 
 ## Words We Use
 
-- Brother / Brotherhood
-- Man / Men
+> **Important — usage rule.** The words below shape our **thematic voice**.
+> They appear in scripture references, brand pillars (Strength · Wisdom · Brotherhood · Truth),
+> and aesthetic descriptions of the path. They do **NOT** appear as **direct address** to the reader.
+>
+> - Vocative use ("brother, listen…", "as a man you…") → ❌ never. The reader may be any gender.
+> - Thematic use ("the path of brotherhood," "war within," "forged in fire") → ✅ keep — that's the voice.
+> - The masculine aesthetic stays (war, forge, battle, discipline). The exclusion goes.
+
+- Brother / Brotherhood — thematic only, not vocative
+- Man / Men — only in scripture quotes or audience-targeting metadata
 - Called / Calling
 - War / Warrior / Battle
 - Forge / Forged / Training

@@ -44,7 +44,7 @@ export const CATEGORIES: Category[] = [
   {
     label: "Become",
     prompts: [
-      "What is a man actually for?",
+      "What am I actually for?",
       "How do I find my purpose?",
       "How do I build real discipline?",
       "I'm wasting my twenties and I know it",

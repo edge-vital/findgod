@@ -21,7 +21,7 @@ const MORNING_MESSAGES = [
   "The day has not won yet. You're here first.",
   "You wake up. The world starts pulling. This room doesn't.",
   "Heavy morning? Start with one verse.",
-  "The man who shows up at dawn already won the day.",
+  "Show up at dawn. The day is already yours.",
   "You opened this before you opened the feed. Good.",
 ];
 
@@ -37,7 +37,7 @@ const MIDDAY_MESSAGES = [
 const EVENING_MESSAGES = [
   "The day was loud. The Word is quiet. Sit with it.",
   "Whatever today took from you, begin to take it back.",
-  "Brother, you're on the right path. Keep walking.",
+  "You're on the right path. Keep walking.",
   "You're tired of the noise. That's why you're here.",
   "The day is closing. The Word is open. Read.",
   "End the day in the right room.",
@@ -47,9 +47,9 @@ const ALWAYS_MESSAGES = [
   "Whatever you came here with — you're in the right room.",
   "There is no question too small. No struggle too dark.",
   "The narrow path is rarely crowded. Welcome.",
-  "You're not the first man who landed here lost. You won't be the last.",
+  "You're not the first to land here lost. You won't be the last.",
   "The Word has been waiting for you.",
-  "The man who shows up wins. You showed up.",
+  "You showed up. That's the win.",
 ];
 
 function pickMessageForNow(): string {
