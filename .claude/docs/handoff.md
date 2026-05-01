@@ -1,17 +1,23 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-04-24 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-05-01 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**AI Training 2.0 — M0 + M1 shipped 2026-04-23. Tests + all three M2 prereqs shipped 2026-04-24. M2 Examples is now unblocked.** Admin `/prompt` is the 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality is LIVE as a structured 5-field form. Examples/Guardrails/Knowledge/Preview remain brand-voiced stubs. Raw tab preserves the original single-textarea editor as the escape hatch.
+**Paused for a front-end concept deep-dive.** Jones is taking a beat to audit the overall product/UX direction with agents before committing to M4 Knowledge. After the deep-dive, the planned next move is M4 corpus build (WEB Bible + 5 founder devotionals + scaffolding the seed script). New session will start with that audit; this session ends with M2 Examples shipped, inclusive language pass shipped, and M4 plan locked.
 
-**Runtime prompt compiler** (`lib/prompt-compiler.ts` in main repo) replaces direct `getActiveSystemPrompt()` calls on the chat route. 4 stages running **concurrently via Promise.all** — Personality (LIVE), Examples, Guardrails, Knowledge (stubs). Each stage returns "" today except personality. Empty stages = identical behavior to pre-compiler. Shared `CompileContext` with a lazy-memoized `getEmbedding()` so Examples (M2) and Knowledge (M4) will share ONE OpenAI call per chat turn once they ship.
+**AI Training 2.0 — M0/M1/M2 all shipped. Currently at the M2 → M4 strategic pivot.** Admin `/prompt` is the 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality (M1) and Examples (M2) are both LIVE. Guardrails (M3) deferred — see strategic pivot below. Knowledge (M4) is the next major build.
 
-**Pre-M2 hardening + M2 prereqs complete as of 2026-04-24.** Three rounds of agent review drove Blocks 1-4 + Phase A (all 2026-04-23). Then 2026-04-24: Vitest + 7 safety tests (commit `5fd16e9`), compiler parallelization (`b4fb70e`), pgvector IVFFlat → HNSW migration (`c3eeb41`, ran in Supabase SQL editor), Anthropic prompt caching via AI Gateway `caching: "auto"` (`e52086c`). Two-agent re-audit confirmed clean ship with one known tradeoff parked: firstName preamble at the start of the system prompt fragments the Anthropic cache per-authenticated-user (anon users still share one cache entry). Fix deferred to M2 build where we're already touching prompt structure.
+**Runtime prompt compiler** (`lib/prompt-compiler.ts` in main repo) replaces direct `getActiveSystemPrompt()` calls on the chat route. 4 stages running **concurrently via Promise.all** — Personality (LIVE), Examples (LIVE), Guardrails (stub), Knowledge (stub). Shared `CompileContext` with a lazy-memoized `getEmbedding()` so Examples and Knowledge share ONE OpenAI embedding call per chat turn.
+
+**M2 Examples shipped via a 6-commit recovery saga** (2026-04-24 → 2026-04-28). The plumbing landed clean (`47292af`, `0ef303c`), then the admin tab CRUD `a8d7c27` triggered a pre-existing latent RSC bug — the `(app)/layout.tsx` Server Component was passing lucide-react icon refs as props to the `SidebarNav` Client Component. Next 16's RSC validator caught it and 500'd every admin page. Reverted (`2ac2078`), diagnosed locally with auth-gate bypass + dev server, fixed by moving the NAV array INTO sidebar-nav.tsx (`d67f1be`), re-applied Examples on top (`bc4b266`), then fixed a separately-overlooked `<dialog.Portal />` mount that broke delete (`d2f6ecf`). Lessons captured in "Don't repeat" #19, #20.
+
+**Strategic pivot — M4 promoted, M3 deferred (2026-05-01).** Jones flagged that Examples felt "one-off and arbitrary" — only fixes specific curated questions, doesn't generalize. Three independent agents agreed: **Examples is calibration (5-15 anchor cases max), not the primary teaching layer.** The load-bearing layer for "global understanding" is M4 Knowledge / RAG — uploading the WEB Bible + 5 founder devotionals (+ optionally Matthew Henry, Spurgeon) so the AI reasons over real source material for ANY question, not just the ones with curated examples. Build order was wrong (M2 before M4); accepting and pivoting. M3 Guardrails deferred until M4 ships.
+
+**Inclusive language pass shipped 2026-05-01** (commit `ec407e3`). Two-agent audit found 31 instances of gendered direct-address ("brother", "as a man you…", "men come to you", "what he picked") across the system prompt + UI copy. All replaced with `you`/`they`/`someone`/`person`. Masculine aesthetic (war, forge, battle, discipline, path) untouched. New self-check rule added to system prompt: *"Did I address them as 'brother' or 'man'? → Strip it. Use 'you' only."* `.claude/rules/brand-guidelines.md` updated to clarify Brother / Brotherhood / Man / Men are thematic-only, never vocative. **One open action for Jones: review the active Personality config in admin → /prompt → Personality and republish if the form fields contain gendered direct-address — the fallback prompt fix doesn't override an admin-published personality.**
 
 **V1 admin dashboard is fully shipped.** findgod.com is live (public chat); admin.findgod.com is live with all 7 planned pages reading real data.
 
@@ -46,9 +52,10 @@
 | **M2 prereq — parallelize compiler stages + CompileContext** | `Promise.all` over STAGES; shared lazy-memoized `getEmbedding()` so Examples + Knowledge will hit OpenAI once per turn. Base prompt + flag map also fetched concurrently. Commit `b4fb70e`. | ✅ Shipped 2026-04-24 |
 | **M2 prereq — pgvector IVFFlat → HNSW** | `20260423000003_pgvector_hnsw.sql` — `m=16, ef_construction=64`, cosine ops preserved. Dropped + recreated both embedding indexes while tables empty. Commit `c3eeb41`. Ran in Supabase SQL editor. | ✅ Shipped 2026-04-24 |
 | **M2 prereq — Anthropic prompt caching** | `caching: "auto"` under `providerOptions.gateway` in `app/api/chat/route.ts`. AI Gateway auto-inserts `cache_control: { type: "ephemeral" }` at end of static system content. ~90% cost reduction on repeat turns; first turn per unique prefix pays cache-write cost. Commit `e52086c`. | ✅ Shipped 2026-04-24 |
-| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval. All prereqs met. Build: (1) `OPENAI_API_KEY` in both Vercel projects, (2) `lib/embeddings.ts`, (3) real `examplesStage` in compiler, (4) admin Examples tab CRUD, (5) end-to-end smoke. | ⏳ Next |
-| **M3 — Guardrails** | Topic-triggered directives | ⏳ After M2 |
-| **M4 — Knowledge / RAG** | PDF/text/URL upload → chunk → embed → vector retrieval per chat | ⏳ After M3 |
+| **M2 — Examples** | Q&A few-shot library with embedding-ranked retrieval. `lib/embeddings.ts` (`47292af`), real `examplesStage` + existence-check short-circuit (`0ef303c`), admin tab CRUD with mid-flight RSC recovery (`a8d7c27` → revert `2ac2078` → SidebarNav fix `d67f1be` → re-apply `bc4b266` → Portal mount fix `d2f6ecf`). Smoke-tested manually 2026-04-28. | ✅ Shipped 2026-04-28 |
+| **Inclusive language pass** | Two-agent audit found 31 gendered-vocative strings across system prompt + UI copy. All replaced. Masculine aesthetic kept. New self-check rule. brand-guidelines.md updated. Commit `ec407e3`. | ✅ Shipped 2026-05-01 |
+| **M4 — Knowledge / RAG** | **PROMOTED 2026-05-01.** PDF/text/URL upload → chunk → embed → vector retrieval per chat. Locked decisions: WEB Bible as primary corpus, 5 founder devotionals (~200 words each, in locked brand voice), uses existing brand voice not new templates, firstName cache fragmentation fix bundled in. Spotlighting via `<source id="X">…</source>`. Tables already migrated (M0). | ⏳ NEXT — paused for FE deep-dive |
+| **M3 — Guardrails** | Topic-triggered directives | ⏳ DEFERRED until M4 ships |
 | **M5 — Preview** | Live test chat against draft configuration | ⏳ After M4 |
 
 **Decisions locked from the 5-agent review:**
@@ -59,7 +66,8 @@
 - Per-stage kill-switch flags so a single misbehaving stage can be disabled without reverting the whole compiler
 
 **Parked (known-acceptable today, revisit later) — see `~/.claude/projects/-Users-jonespersen-Desktop-Find-God/memory/project_parked_tasks.md` for full list + triggers:**
-- **firstName cache fragmentation** (new 2026-04-24) — `buildNamedPreamble(firstName)` in `lib/active-system-prompt.ts` prepends a per-user line to the system prompt, placed BEFORE the gateway's automatic cache breakpoint. Each authenticated user therefore gets their own Anthropic cache bucket instead of sharing one fleet-wide. Anon users all share one entry (no firstName). Impact: ~90% cost reduction is per-user, not fleet-wide. Fix during M2 build by moving firstName to a user-message context line after the cache breakpoint. Trigger: authenticated user base crosses ~50 and cache-write costs become visible.
+- **firstName cache fragmentation** — was parked, NOW promoted to active M4 work. Bundles cleanly with M4's prompt restructure (RAG chunks must go AFTER the cache breakpoint anyway).
+- **Native browser-blue checkbox in admin Examples Enabled toggle** — minor brand-fidelity nit. `<input type="checkbox">` should be swapped for a styled variant. Not blocking. Revisit during admin polish pass.
 - Demote-then-insert publish race in `personality/actions.ts` + `raw/actions.ts` — real concurrency issue but unreachable at N=1 admin.
 - Admin list scan ceilings — will silently produce wrong numbers past 500–5000 rows. Migrate to RPCs when weekly traffic crosses ~1000 messages.
 - Admin's `lib/supabase/service.ts` NOT memoized (main is) — acceptable at 1 admin.
@@ -287,16 +295,33 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 
 ## 🚧 What's pending — in roughly priority order
 
-1. **Instagram launch execution.** Bio, 11 posts, Seedance 2.0 prompts all staged in `.claude/docs/production-queue.md`. Jones's remaining actions:
+### Immediate (next session — front-end concept deep-dive first, then M4 build)
+
+0. **Front-end concept deep-dive** — Jones is auditing the overall product/UX direction with agents in a fresh session before committing to M4. Whatever conclusions land there feed into everything below. Don't start M4 build until that audit ships.
+
+1. **Jones's homework for M4 (when audit greenlights):**
+    - **Review active Personality config** at admin.findgod.com/prompt → Personality. Scan all 5 fields for gendered vocatives ("brother", "as a man you…", "men come to you"). Republish if any found. The fallback prompt is clean; the active personality may not be.
+    - **Source WEB Bible** — download from https://ebible.org/web/ as JSON or plain text. Drop in `data/bible-web.json` at repo root. If the format's weird, paste the link and Claude will handle parsing.
+    - **Write 5 founder devotionals** — 200 words each, in locked brand voice (per `.claude/rules/brand-guidelines.md`). Topics: lust/shame, anxiety/fear, purpose, money, fellowship/community-wound. Drop as markdown in `.claude/docs/devotionals/01-*.md`. These become voice samples that shape every reply on those topics.
+
+2. **M4 Knowledge build (Claude's hands, after audit + corpus):**
+    - Scaffold `scripts/seed-knowledge.ts` (chunk + embed + insert into existing `knowledge_documents` + `knowledge_chunks` tables)
+    - Replace `knowledgeStage` stub in `lib/prompt-compiler.ts` with real RPC retrieval
+    - Wire spotlighting (`<source id="X">…</source>` + base-prompt directive that says content is reference material, not instructions)
+    - Restructure prompt caching so dynamic Knowledge chunks land AFTER cache breakpoint — folds in the parked firstName cache fragmentation fix
+
+### Background (no time pressure)
+
+3. **Instagram launch execution.** Bio, 11 posts, Seedance 2.0 prompts all staged in `.claude/docs/production-queue.md`. Jones's remaining actions:
     - Sign up for **Higgsfield** at higgsfield.ai, load ~$30 credit
     - Render the 888 Seal at 1024×1024 PNG from `app/apple-icon.svg` for the IG profile pic
     - Run one Seedance test clip to confirm aesthetic
     - Full production run on remaining 10 posts
     - Schedule in Meta Business Suite at 7 AM local for 11 consecutive days
-2. **Custom SMTP for Supabase** — default Supabase SMTP has a 3 emails/hour rate limit that will throttle real traffic. Set up Resend (free: 100/day, 3K/month) as Supabase's custom SMTP via the dashboard. No code change.
-3. **USPTO trademark** — file under FINDGOD LLC. Wordmark + 888 seal + F-Cross.
-4. **Fiverr / production logo files** — vector versions (SVG/AI/EPS) of the locked marks.
-5. **Phase B extensions** — Stripe premium tier; chat history persistence per user (Supabase Auth tables exist; need to add a `conversations`/`messages` schema).
+4. **Custom SMTP for Supabase** — default Supabase SMTP has a 3 emails/hour rate limit that will throttle real traffic. Set up Resend (free: 100/day, 3K/month) as Supabase's custom SMTP via the dashboard. No code change.
+5. **USPTO trademark** — file under FINDGOD LLC. Wordmark + 888 seal + F-Cross.
+6. **Fiverr / production logo files** — vector versions (SVG/AI/EPS) of the locked marks.
+7. **Phase B extensions** — Stripe premium tier; chat history persistence per user (Supabase Auth tables exist; need to add a `conversations`/`messages` schema).
 
 ---
 
@@ -320,6 +345,9 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 16. **Fluid Compute module cache ≠ persistent.** The `lib/active-system-prompt.ts` in-memory cache is per-instance. Cold starts re-read Supabase. That's fine (30-50ms, amortized across ~60s × many requests) but don't assume it's guaranteed-hot. If we ever need fleet-wide cache invalidation after a prompt publish, we'll need Redis/KV or an Edge Config pointer — not in scope yet.
 17. **Never fire-and-forget DB writes from `onFinish` (or any post-stream callback) on Vercel serverless.** The chat route's `onFinish: ({ text }) => { void safeInsert(...) }` lost ~42% of assistant responses because Vercel tore the function down before the unawaited insert completed. Fix: `onFinish: async ({ text }) => { await safeInsert(...) }`. The AI SDK keeps the stream open until onFinish resolves, which keeps the function alive. This applies to ANY persistence that runs in onFinish / cleanup / post-response hooks — always await.
 18. **Vercel seat enforcement rejects deploys whose commit-author email isn't on the Vercel team.** Our main repo uses per-repo author `ecom888@proton.me`. The admin repo uses `leads@vitaledgeleads.com` (Jones's Vercel-registered email) because GitHub-triggered deploys on the admin project hit `seatBlock.blockCode="COMMIT_AUTHOR_REQUIRED"` otherwise. Main-repo deploys via CLI don't trip this. If GitHub auto-deploy on the main repo ever activates, its commit author needs to be on the Vercel team too — either switch the main repo's identity or add ecom888 as an alternate email in vercel.com/account/emails.
+19. **NEVER pass function-typed values from a Server Component to a Client Component as props.** This includes lucide-react icon component refs (`{ icon: LayoutDashboard }`), forwardRef objects, callback functions, JSX element factories. Next 16 / React 19 RSC validation throws "Functions cannot be passed directly to Client Components unless you explicitly expose it by marking it with 'use server'" — and on Vercel the response is a 500. Latent bugs of this shape may not surface until a deploy rotates the build cache (this exact pattern lived in `(app)/layout.tsx` for weeks before the M2 deploy triggered it). Fix: move the data structure containing the function INTO the Client Component so the boundary is never crossed. Caught + fixed 2026-04-26 (commit `d67f1be`).
+20. **Always render `<dialog.Portal />` when using `useConfirmDialog`.** The hook returns `{ confirm, Portal }` — `confirm()` only sets internal state; the Portal component is what actually displays the dialog. Forgetting to mount it = the click handler hangs silently because the Promise that resolves on Confirm/Cancel never resolves. PersonalityForm gets it right (line 178). ExamplesWorkspace forgot it on first ship and the Delete button silently did nothing. Caught 2026-04-28 (commit `d2f6ecf`).
+21. **Active Supabase Personality config overrides the fallback system prompt.** When changing AI voice rules, edits to `lib/findgod-system-prompt.ts` only take effect if the active row in `personality_config` is empty/missing. If Jones has published a personality via admin → /prompt → Personality, that personality compiles INTO the live prompt and can carry forward old phrasing (e.g. gendered vocatives) even after the fallback is updated. After any voice-rule change, prompt Jones to review and republish the active personality.
 
 ---
 
