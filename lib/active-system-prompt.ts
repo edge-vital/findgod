@@ -1,3 +1,4 @@
+import "server-only";
 import {
   buildNamedPreamble,
   FINDGOD_SYSTEM_PROMPT_BASE,

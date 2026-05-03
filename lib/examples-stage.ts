@@ -1,3 +1,4 @@
+import "server-only";
 import { createServiceClient } from "./supabase/service";
 import { makeCache } from "./ttl-cache";
 
