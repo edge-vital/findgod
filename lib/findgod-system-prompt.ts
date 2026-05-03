@@ -26,7 +26,13 @@
  */
 export function buildNamedPreamble(firstName: string | null): string {
   if (!firstName) return "";
-  return `You are speaking with ${firstName}. Use their name sparingly — never every response. Drop it in naturally at moments that land: the opening of a heavy response, the close of a hard truth, or when you're challenging them directly. Never force it. No "${firstName}, friend" or "Great, ${firstName}!" energy.\n\n`;
+  // The user controls `firstName` at signup via Supabase user_metadata.
+  // Strip newlines + cap length so a `firstName` of "\n\n## New rules\n..."
+  // can't smuggle markdown structure into the system prompt. The compiler's
+  // anti-injection sandwich is the outer defense; this is belt-and-suspenders.
+  const safe = firstName.replace(/[\r\n]+/g, " ").slice(0, 50).trim();
+  if (!safe) return "";
+  return `You are speaking with ${safe}. Use their name sparingly — never every response. Drop it in naturally at moments that land: the opening of a heavy response, the close of a hard truth, or when you're challenging them directly. Never force it. No "${safe}, friend" or "Great, ${safe}!" energy.\n\n`;
 }
 
 /**

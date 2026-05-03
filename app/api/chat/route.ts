@@ -42,6 +42,11 @@ export const maxDuration = 60;
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_MESSAGES = 60;
 const MAX_MESSAGE_TEXT_CHARS = 4_000;
+// Per-message parts cap. Realistic AI SDK UIMessage parts: 1–3 (text +
+// optional tool / file). Bound this so an attacker can't bypass the body
+// cap by sending one message with 10K small parts (40MB total under the
+// per-part limit). 20 is generous and leaves room for future part types.
+const MAX_PARTS_PER_MESSAGE = 20;
 const MAX_DAILY_AUTHED_MESSAGES = 100;
 const MAX_OUTPUT_TOKENS = 1_500;
 
@@ -255,6 +260,15 @@ export async function POST(req: Request): Promise<Response> {
     }
     for (const msg of messages) {
       if (!msg?.parts || !Array.isArray(msg.parts)) continue;
+      // Cap parts per message — closes a bypass where an attacker omits
+      // Content-Length (chunked encoding) and sends one message with
+      // thousands of small parts, evading the body-size ceiling.
+      if (msg.parts.length > MAX_PARTS_PER_MESSAGE) {
+        return new Response(
+          JSON.stringify({ error: "Message has too many parts." }),
+          { status: 413, headers: { "Content-Type": "application/json" } },
+        );
+      }
       for (const part of msg.parts) {
         if (
           part?.type === "text" &&
