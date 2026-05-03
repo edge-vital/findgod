@@ -5,7 +5,6 @@ import {
   UIMessage,
 } from "ai";
 import { checkBotId } from "botid/server";
-import { randomUUID } from "node:crypto";
 import { compileSystemPrompt } from "@/lib/prompt-compiler";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
@@ -15,6 +14,7 @@ import {
   pickLimit,
   readChatState,
 } from "@/lib/chat-limit";
+import { newSessionId, verifySessionId } from "@/lib/session-cookie";
 
 // Vercel function max duration (seconds). Streaming responses from Claude
 // typically finish in under 15s; 60s gives comfortable headroom.
@@ -51,20 +51,24 @@ const MAX_DAILY_AUTHED_MESSAGES = 100;
 const MAX_OUTPUT_TOKENS = 1_500;
 
 /**
- * Name of the per-visitor session cookie. Not signed — tamper-resistance
- * isn't needed here because the cookie is only used to group chat rows in
- * the admin dashboard. Real enforcement (free-message limit) lives on the
- * signed cookie managed by lib/chat-limit.ts.
+ * Name of the per-visitor session cookie. HMAC-SIGNED via FINDGOD_COOKIE_SECRET
+ * (lib/session-cookie.ts). The signature prevents forgery — an attacker can
+ * no longer hand-set this cookie before signup to claim another visitor's
+ * anonymous chat history at OTP-verify time.
  */
 const SESSION_COOKIE = "findgod_session_id";
 const SESSION_MAX_AGE = 60 * 60 * 24 * 90; // 90 days
 
 /**
  * Read the session id from the incoming request, or mint a new one.
- * Returns { sessionId, isNew } so the caller can decide whether to set the
- * cookie on the outgoing response.
+ * Verifies the HMAC signature on read; an unsigned/forged/expired cookie
+ * is treated as a fresh visitor and a new signed cookie is issued.
+ * Returns { sessionId, signed, isNew } so the caller can decide whether
+ * to set the cookie on the outgoing response.
  */
-function getOrCreateSessionId(req: Request): { sessionId: string; isNew: boolean } {
+function getOrCreateSessionId(
+  req: Request,
+): { sessionId: string; signed: string; isNew: boolean } {
   const header = req.headers.get("cookie");
   if (header) {
     const match = header
@@ -72,14 +76,16 @@ function getOrCreateSessionId(req: Request): { sessionId: string; isNew: boolean
       .map((c) => c.trim())
       .find((c) => c.startsWith(`${SESSION_COOKIE}=`));
     if (match) {
-      const value = decodeURIComponent(match.slice(SESSION_COOKIE.length + 1));
-      // Basic UUID shape check so a tampered cookie doesn't poison the DB.
-      if (/^[0-9a-f-]{36}$/i.test(value)) {
-        return { sessionId: value, isNew: false };
+      const raw = decodeURIComponent(match.slice(SESSION_COOKIE.length + 1));
+      const verified = verifySessionId(raw);
+      if (verified) {
+        return { sessionId: verified, signed: raw, isNew: false };
       }
+      // Unsigned / forged / expired — fall through and mint a new one.
     }
   }
-  return { sessionId: randomUUID(), isNew: true };
+  const fresh = newSessionId();
+  return { sessionId: fresh.sessionId, signed: fresh.signed, isNew: true };
 }
 
 /**
@@ -141,8 +147,12 @@ export async function POST(req: Request): Promise<Response> {
       }
     }
 
-    // ── Session id (sync cookie read) ────────────────────────────
-    const { sessionId, isNew: isNewSession } = getOrCreateSessionId(req);
+    // ── Session id (sync cookie read + HMAC verify) ───────────────
+    const {
+      sessionId,
+      signed: signedSession,
+      isNew: isNewSession,
+    } = getOrCreateSessionId(req);
 
     // ── Fire 3 independent async tasks in parallel ───────────────
     // BotID verification, Supabase user lookup, and body parse have
@@ -389,11 +399,14 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     // Set the session cookie on first sight of a visitor so subsequent
-    // requests reuse the same id.
+    // requests reuse the same id. HttpOnly + signed value (HMAC) — see
+    // lib/session-cookie.ts. HttpOnly closes the XSS-to-session-hijack
+    // chain (M-1); HMAC closes the cookie-forge-then-signup-to-claim-
+    // history attack (M-2).
     if (isNewSession) {
       response.headers.append(
         "Set-Cookie",
-        `${SESSION_COOKIE}=${sessionId}; Path=/; Max-Age=${SESSION_MAX_AGE}; SameSite=Lax; Secure`,
+        `${SESSION_COOKIE}=${encodeURIComponent(signedSession)}; Path=/; Max-Age=${SESSION_MAX_AGE}; SameSite=Lax; Secure; HttpOnly`,
       );
     }
 

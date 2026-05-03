@@ -26,6 +26,16 @@ export const EMBEDDING_DIMENSIONS = 1536;
 const OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings";
 const EMBEDDING_TIMEOUT_MS = 10_000;
 
+// Cap embed input to bound OpenAI cost + payload latency. Typical chat
+// messages are 50–300 chars; 2KB is generous and produces a representative
+// embedding for any realistic message. Beyond this we truncate (don't
+// reject) so a long user message still gets a usable vector.
+//
+// Defense-in-depth — H-2 already caps per-message text at 4KB at the
+// /api/chat boundary, but this helper is also called from admin Examples
+// save where the question can be up to 500 chars (already small).
+const MAX_EMBED_INPUT_CHARS = 2_000;
+
 type OpenAIEmbeddingResponse = {
   data: Array<{ embedding: number[]; index: number; object: string }>;
   model: string;
@@ -42,8 +52,11 @@ type OpenAIEmbeddingResponse = {
  * returns `null` without making the API call.
  */
 export async function embed(text: string): Promise<number[] | null> {
-  const trimmed = text.trim();
+  let trimmed = text.trim();
   if (!trimmed) return null;
+  if (trimmed.length > MAX_EMBED_INPUT_CHARS) {
+    trimmed = trimmed.slice(0, MAX_EMBED_INPUT_CHARS);
+  }
 
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) {

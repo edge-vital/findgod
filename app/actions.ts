@@ -1,9 +1,16 @@
 "use server";
 
 import { checkBotId } from "botid/server";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
+import { after } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createServiceClient } from "@/lib/supabase/service";
+import {
+  checkRateLimit,
+  clientIpFromHeaders,
+  recordAttempt,
+} from "@/lib/rate-limit";
+import { verifySessionId } from "@/lib/session-cookie";
 
 const SESSION_COOKIE = "findgod_session_id";
 
@@ -26,6 +33,17 @@ export type AuthState =
 const NAME_MAX = 80;
 const EMAIL_MAX = 254;
 const EMAIL_PATTERN = /^[^\s@.][^\s@]*@[^\s@.][^\s@]*\.[^\s@]{2,}$/;
+
+// Rate-limit windows for OTP. BotID handles scripted bots; these caps
+// stop a passing-BotID actor (e.g. residential-proxy worker) from brute-
+// forcing 6-digit codes against the same email. Numbers err generous so
+// a real user with a typo'd code on a flaky email isn't blocked.
+const OTP_REQUEST_PER_EMAIL_MAX = 5;
+const OTP_REQUEST_PER_EMAIL_WINDOW_MS = 60 * 60 * 1000; // 1h
+const OTP_REQUEST_PER_IP_MAX = 20;
+const OTP_REQUEST_PER_IP_WINDOW_MS = 60 * 60 * 1000; // 1h
+const OTP_VERIFY_PER_EMAIL_MAX = 8;
+const OTP_VERIFY_PER_EMAIL_WINDOW_MS = 10 * 60 * 1000; // 10m
 
 function cleanName(raw: unknown): string | null {
   if (typeof raw !== "string") return null;
@@ -85,6 +103,36 @@ export async function requestOtp(
     };
   }
 
+  // Rate-limit by email AND by IP. Either bucket exceeded → reject with
+  // a generic message that doesn't disclose which bucket fired (avoids
+  // helping the attacker pivot).
+  const ip = clientIpFromHeaders(await headers());
+  const emailKey = `email:${email.toLowerCase()}`;
+  const ipKey = `ip:${ip}`;
+  const [emailLimit, ipLimit] = await Promise.all([
+    checkRateLimit({
+      key: emailKey,
+      type: "otp_request",
+      max: OTP_REQUEST_PER_EMAIL_MAX,
+      windowMs: OTP_REQUEST_PER_EMAIL_WINDOW_MS,
+    }),
+    checkRateLimit({
+      key: ipKey,
+      type: "otp_request",
+      max: OTP_REQUEST_PER_IP_MAX,
+      windowMs: OTP_REQUEST_PER_IP_WINDOW_MS,
+    }),
+  ]);
+  if (!emailLimit.allowed || !ipLimit.allowed) {
+    return {
+      step: "error",
+      prevStep: "idle",
+      message: "Too many attempts. Take a breath. Try again in an hour.",
+      name,
+      email,
+    };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
@@ -93,6 +141,13 @@ export async function requestOtp(
       data: { first_name: name },
     },
   });
+
+  // Record the attempt AFTER the Supabase call so a failure-to-send
+  // doesn't burn the user's quota.
+  if (!error) {
+    void recordAttempt(emailKey, "otp_request");
+    void recordAttempt(ipKey, "otp_request");
+  }
 
   if (error) {
     const summary = `${error.name}: ${error.message}`;
@@ -153,6 +208,27 @@ export async function verifyOtp(
     };
   }
 
+  // Brute-force ceiling on verify attempts per email per OTP-window.
+  // 6-digit OTP entropy ≈ 1 in 1,000,000 — ~8 attempts/window keeps the
+  // odds astronomically low while leaving room for typos.
+  const verifyKey = `email:${email.toLowerCase()}`;
+  const verifyLimit = await checkRateLimit({
+    key: verifyKey,
+    type: "otp_verify",
+    max: OTP_VERIFY_PER_EMAIL_MAX,
+    windowMs: OTP_VERIFY_PER_EMAIL_WINDOW_MS,
+  });
+  if (!verifyLimit.allowed) {
+    return {
+      step: "error",
+      prevStep: "code",
+      message: "Too many attempts. Request a new code.",
+      email,
+      name: name ?? undefined,
+    };
+  }
+  void recordAttempt(verifyKey, "otp_verify");
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.verifyOtp({
     email,
@@ -186,8 +262,12 @@ export async function verifyOtp(
   // All fire-and-forget; a Supabase hiccup here must not block auth.
   try {
     const cookieStore = await cookies();
-    const sessionId = cookieStore.get(SESSION_COOKIE)?.value;
-    if (sessionId && /^[0-9a-f-]{36}$/i.test(sessionId)) {
+    const rawSession = cookieStore.get(SESSION_COOKIE)?.value;
+    // Verify the HMAC signature BEFORE backfilling. Pre-fix, an attacker
+    // could hand-set this cookie to any UUID before signup and claim that
+    // session's anonymous chat history. The signature is the gate.
+    const sessionId = verifySessionId(rawSession ?? null);
+    if (sessionId) {
       const svc = createServiceClient();
       void svc.from("events").insert({
         event_type: "signed_up",
@@ -212,40 +292,55 @@ export async function verifyOtp(
     );
   }
 
-  // Fire-and-forget Beehiiv subscribe. Must not block the auth success path.
+  // Beehiiv subscribe — TRUE fire-and-forget via Vercel `after()`. The
+  // earlier `await fetch(...)` was blocking the auth success path despite
+  // a comment claiming otherwise — a Beehiiv outage stalled every signup
+  // until function timeout. `after()` lets the action return immediately
+  // while the platform keeps the function alive long enough for the
+  // background fetch to resolve. We still wrap with a 3s AbortController
+  // so a hanging connection can't burn the whole maxDuration window.
   const beehiivKey = process.env.BEEHIIV_API_KEY;
   const beehiivPub = process.env.BEEHIIV_PUBLICATION_ID;
   if (beehiivKey && beehiivPub) {
-    try {
-      const response = await fetch(
-        `https://api.beehiiv.com/v2/publications/${beehiivPub}/subscriptions`,
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${beehiivKey}`,
-            "Content-Type": "application/json",
+    after(async () => {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 3_000);
+      try {
+        const response = await fetch(
+          `https://api.beehiiv.com/v2/publications/${beehiivPub}/subscriptions`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${beehiivKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              email,
+              reactivate_existing: false,
+              send_welcome_email: true,
+              utm_source: "findgod.com",
+              utm_medium: "signup_wall",
+              custom_fields: firstName
+                ? [{ name: "First Name", value: firstName }]
+                : undefined,
+            }),
+            signal: ctrl.signal,
           },
-          body: JSON.stringify({
-            email,
-            reactivate_existing: false,
-            send_welcome_email: true,
-            utm_source: "findgod.com",
-            utm_medium: "signup_wall",
-            custom_fields: firstName
-              ? [{ name: "First Name", value: firstName }]
-              : undefined,
-          }),
-        },
-      );
-      if (!response.ok) {
-        console.error(
-          `[FINDGOD beehiiv] forward non-200: ${response.status} ${response.statusText}`,
         );
+        if (!response.ok) {
+          console.error(
+            `[FINDGOD beehiiv] forward non-200: ${response.status} ${response.statusText}`,
+          );
+        }
+      } catch (e) {
+        // AbortError (timeout), network error, etc. — log only name+message
+        // (Beehiiv response bodies sometimes echo input fields).
+        const msg = e instanceof Error ? `${e.name}: ${e.message}` : "unknown";
+        console.error("[FINDGOD beehiiv] forward error:", msg);
+      } finally {
+        clearTimeout(timer);
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : "unknown";
-      console.error("[FINDGOD beehiiv] forward error:", msg);
-    }
+    });
   }
 
   return { step: "success", firstName };

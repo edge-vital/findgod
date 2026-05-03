@@ -1,12 +1,13 @@
 import { checkBotId } from "botid/server";
-import { randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase/service";
+import { newSessionId, verifySessionId } from "@/lib/session-cookie";
 
 /**
  * Records a `landed` funnel event — fired once per session by a small
  * client-side tracker on the homepage. If the visitor already has a
- * `findgod_session_id` cookie, we skip (they've landed before). First-time
- * visitors get a session cookie set in the response.
+ * VALID signed `findgod_session_id` cookie, we skip (they've landed
+ * before). First-time visitors AND visitors with a missing/forged/
+ * legacy-unsigned cookie get a fresh signed session cookie.
  *
  * BotID protection added so the endpoint can't be spammed to inflate
  * `landed` counts and burn Supabase row budget. No-op in local dev;
@@ -22,17 +23,23 @@ export async function POST(req: Request): Promise<Response> {
   }
 
   const cookie = req.headers.get("cookie") ?? "";
-  const existing = cookie
+  const match = cookie
     .split(";")
     .map((c) => c.trim())
     .find((c) => c.startsWith(`${SESSION_COOKIE}=`));
 
-  if (existing) {
-    // Already seen this visitor. No event, no cookie change.
-    return new Response(null, { status: 204 });
+  // Only consider the visit "previously landed" if the existing cookie
+  // is a VALID signed session id. A missing or forged cookie falls
+  // through and gets a fresh one — closes the cookie-forgery path on
+  // this endpoint too.
+  if (match) {
+    const raw = decodeURIComponent(match.slice(SESSION_COOKIE.length + 1));
+    if (verifySessionId(raw)) {
+      return new Response(null, { status: 204 });
+    }
   }
 
-  const sessionId = randomUUID();
+  const { sessionId, signed } = newSessionId();
 
   const supabase = createServiceClient();
   const { error } = await supabase.from("events").insert({
@@ -52,7 +59,7 @@ export async function POST(req: Request): Promise<Response> {
   const res = new Response(null, { status: 204 });
   res.headers.append(
     "Set-Cookie",
-    `${SESSION_COOKIE}=${sessionId}; Path=/; Max-Age=${SESSION_MAX_AGE}; SameSite=Lax; Secure`,
+    `${SESSION_COOKIE}=${encodeURIComponent(signed)}; Path=/; Max-Age=${SESSION_MAX_AGE}; SameSite=Lax; Secure; HttpOnly`,
   );
   return res;
 }
