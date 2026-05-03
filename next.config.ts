@@ -32,7 +32,30 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+    // Includes opt-out from Google Topics API (browsing-topics) +
+    // Federated Learning of Cohorts (interest-cohort) — both ship-by-
+    // default in Chromium and would otherwise enroll our visitors in
+    // ad-tracking signal harvesting.
+    value:
+      "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=(), browsing-topics=()",
+  },
+  {
+    // Defends against same-origin window confusion (Spectre-class) by
+    // blocking cross-origin window references from external openers.
+    key: "Cross-Origin-Opener-Policy",
+    value: "same-origin",
+  },
+  {
+    // Same-origin only — prevents this site's resources from being
+    // embedded as <img>/<script>/<iframe> from other origins.
+    key: "Cross-Origin-Resource-Policy",
+    value: "same-origin",
+  },
+  {
+    // Prevent the browser from speculatively resolving DNS for outbound
+    // links. Avoids leaking link metadata to third-party DNS providers.
+    key: "X-DNS-Prefetch-Control",
+    value: "off",
   },
   {
     key: "Content-Security-Policy",
