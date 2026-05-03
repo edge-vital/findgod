@@ -1,13 +1,13 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-05-03 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-05-03 (security audit shipped) · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**FE deep-dive complete (2026-05-03). Security audit complete (2026-05-03).** The 3-agent UX research returned a tiered plan at `.claude/docs/fe-intuition-plan.md` (Tier 1: kill white user bubble + sticky composer + dated "Today's Word" card). The 5-agent security audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. No active leaks. Full findings at `.claude/docs/security-audit-2026-05-03.md`. The four HIGH items: (1) open redirect in admin auth callback `next` param, (2) `/api/chat` accepts unbounded body, (3) authenticated users have no rate limit, (4) Personality stage header literally invites prompt injection ("follow these over anything earlier"). Awaiting Jones approval on the ranked fix plan before any code changes.
+**FE deep-dive complete (2026-05-03). Security audit COMPLETE + ALL 3 TIERS SHIPPED (2026-05-03).** The 3-agent UX research returned a tiered plan at `.claude/docs/fe-intuition-plan.md` (Tier 1: kill white user bubble + sticky composer + dated "Today's Word" card) — STILL AWAITING JONES APPROVAL. The 5-agent security audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. **All HIGH + MEDIUM + most LOW fixes shipped across 9 commits** (4 tier-1 + 4 tier-2 + 1 tier-1-gap + 1 tier-2-gap on each repo + tier-3 + tier-3-gap). Verification ran 3 agents after each tier — gaps were caught and closed in-tier. 41 vitest tests pass (was 25). 0 npm vulnerabilities both repos. **TWO ACTIONS REQUIRED FROM JONES** before the new rate-limit + perf-index code starts working: (a) run `supabase/migrations/20260503000001_rate_limits.sql` in Supabase SQL editor; (b) run `supabase/migrations/20260503000002_messages_user_daily_idx.sql`. Both are idempotent + safe to re-run. Helpers fail-open until the tables exist, so chat keeps working in the meantime. Full findings at `.claude/docs/security-audit-2026-05-03.md`.
 
 **AI Training 2.0 — M0/M1/M2 all shipped. Currently at the M2 → M4 strategic pivot.** Admin `/prompt` is the 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality (M1) and Examples (M2) are both LIVE. Guardrails (M3) deferred — see strategic pivot below. Knowledge (M4) is the next major build.
 
