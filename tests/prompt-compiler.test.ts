@@ -35,13 +35,14 @@ describe("prompt-compiler", () => {
     vi.mocked(embed).mockResolvedValue(null);
   });
 
-  it("returns the base prompt only when compiler_v2_enabled is false", async () => {
+  it("returns the base prompt only when compiler_v2_enabled is false (still sandwiched)", async () => {
     vi.mocked(getAllFlags).mockResolvedValue({ compiler_v2_enabled: false });
     vi.mocked(getPersonalitySection).mockResolvedValue("PERSONALITY_BLOCK");
 
     const out = await compileSystemPrompt();
 
-    expect(out).toBe("BASE_PROMPT");
+    expect(out).toContain("BASE_PROMPT");
+    expect(out).not.toContain("PERSONALITY_BLOCK");
     expect(getPersonalitySection).not.toHaveBeenCalled();
   });
 
@@ -53,7 +54,7 @@ describe("prompt-compiler", () => {
 
     const out = await compileSystemPrompt();
 
-    expect(out).toBe("BASE_PROMPT");
+    expect(out).toContain("BASE_PROMPT");
     expect(out).not.toContain("PERSONALITY_BLOCK");
     expect(getPersonalitySection).not.toHaveBeenCalled();
   });
@@ -67,6 +68,32 @@ describe("prompt-compiler", () => {
     expect(out).toContain("BASE_PROMPT");
     expect(out).toContain("PERSONALITY_BLOCK");
     expect(getPersonalitySection).toHaveBeenCalledTimes(1);
+  });
+
+  it("sandwiches every compiled prompt with anti-injection header + footer", async () => {
+    vi.mocked(getAllFlags).mockResolvedValue({});
+    vi.mocked(getPersonalitySection).mockResolvedValue("PERSONALITY_BLOCK");
+
+    const out = await compileSystemPrompt();
+
+    // Header lands BEFORE base
+    expect(out).toContain("Untrusted input");
+    expect(out.indexOf("Untrusted input")).toBeLessThan(out.indexOf("BASE_PROMPT"));
+    // Footer lands AFTER stage output
+    expect(out).toContain("Final reaffirmation");
+    expect(out.indexOf("PERSONALITY_BLOCK")).toBeLessThan(
+      out.indexOf("Final reaffirmation"),
+    );
+  });
+
+  it("applies anti-injection sandwich on the legacy path too", async () => {
+    vi.mocked(getAllFlags).mockResolvedValue({ compiler_v2_enabled: false });
+
+    const out = await compileSystemPrompt();
+
+    expect(out).toContain("Untrusted input");
+    expect(out).toContain("Final reaffirmation");
+    expect(out).toContain("BASE_PROMPT");
   });
 });
 

@@ -21,6 +21,31 @@ import {
 export const maxDuration = 60;
 
 /**
+ * Cost-DOS caps. A single authenticated user with no rate limit could
+ * issue thousands of unbounded turns/day; without these, one bad actor
+ * can drive Claude API costs into the hundreds of dollars before any
+ * backstop fires.
+ *
+ * - MAX_BODY_BYTES: Reject 50MB JSON bodies before parse. 64KB fits a
+ *   60-message thread of 1KB each comfortably.
+ * - MAX_MESSAGES: Cap conversation depth so attackers can't forge a
+ *   10K-turn history that bills as input tokens.
+ * - MAX_MESSAGE_TEXT_CHARS: Per-message text cap. A user typing a long
+ *   confession gets 4KB; that's ~1000 words, more than any realistic
+ *   chat input.
+ * - MAX_DAILY_AUTHED_MESSAGES: Per-authenticated-user rolling 24h cap.
+ *   Anonymous visitors hit the 3–5 cookie wall; without this, signing
+ *   up via OTP unlocks unlimited spend.
+ * - MAX_OUTPUT_TOKENS: FINDGOD responses are short by design — verse
+ *   + 2-4 paragraphs + choices block. 1500 tokens is generous.
+ */
+const MAX_BODY_BYTES = 64 * 1024;
+const MAX_MESSAGES = 60;
+const MAX_MESSAGE_TEXT_CHARS = 4_000;
+const MAX_DAILY_AUTHED_MESSAGES = 100;
+const MAX_OUTPUT_TOKENS = 1_500;
+
+/**
  * Name of the per-visitor session cookie. Not signed — tamper-resistance
  * isn't needed here because the cookie is only used to group chat rows in
  * the admin dashboard. Real enforcement (free-message limit) lives on the
@@ -96,6 +121,21 @@ async function safeInsert(
  */
 export async function POST(req: Request): Promise<Response> {
   try {
+    // ── Body size pre-check (synchronous, free) ──────────────────
+    // Reject oversize bodies before we even start reading them.
+    // Content-Length isn't always honest, but if it's set and large
+    // we save a JSON parse + memory burn.
+    const contentLength = req.headers.get("content-length");
+    if (contentLength) {
+      const declared = Number.parseInt(contentLength, 10);
+      if (Number.isFinite(declared) && declared > MAX_BODY_BYTES) {
+        return new Response(
+          JSON.stringify({ error: "Request too large." }),
+          { status: 413, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     // ── Session id (sync cookie read) ────────────────────────────
     const { sessionId, isNew: isNewSession } = getOrCreateSessionId(req);
 
@@ -134,6 +174,41 @@ export async function POST(req: Request): Promise<Response> {
     if (user) {
       firstName =
         (user.user_metadata?.first_name as string | undefined) ?? null;
+
+      // ── Per-user daily message budget ─────────────────────────
+      // Authenticated users skip the anonymous cookie wall; without a
+      // separate cap, a free OTP signup unlocks unlimited token spend.
+      // Count user messages in the rolling 24h window. A misconfigured
+      // count query fails open (don't lock real users out on infra
+      // hiccups) but logs the error for visibility.
+      const oneDayAgo = new Date(
+        Date.now() - 24 * 60 * 60 * 1000,
+      ).toISOString();
+      const { count: dailyCount, error: countError } = await createServiceClient()
+        .from("messages")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("role", "user")
+        .gte("created_at", oneDayAgo);
+
+      if (countError) {
+        console.error(
+          "[findgod/chat] daily count failed:",
+          countError.code ?? "unknown",
+        );
+      } else if (
+        typeof dailyCount === "number" &&
+        dailyCount >= MAX_DAILY_AUTHED_MESSAGES
+      ) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "You've reached today's message limit. Take a breath. Open scripture. Come back tomorrow.",
+            code: "DAILY_LIMIT_REACHED",
+          }),
+          { status: 429, headers: { "Content-Type": "application/json" } },
+        );
+      }
     } else {
       // ── 3. Anonymous visitor — enforce cookie counter ──────────
       const existing = readChatState(req);
@@ -161,6 +236,39 @@ export async function POST(req: Request): Promise<Response> {
     }
 
     const { messages } = await bodyPromise;
+
+    // ── Message-array shape + size validation ────────────────────
+    // Reject malformed arrays AND forged 10K-turn histories. Each
+    // user/assistant turn after this point bills as input tokens; an
+    // attacker can't be trusted to send a sane shape.
+    if (!Array.isArray(messages)) {
+      return new Response(
+        JSON.stringify({ error: "Invalid request body." }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (messages.length > MAX_MESSAGES) {
+      return new Response(
+        JSON.stringify({ error: "Conversation too long. Start a new chat." }),
+        { status: 413, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    for (const msg of messages) {
+      if (!msg?.parts || !Array.isArray(msg.parts)) continue;
+      for (const part of msg.parts) {
+        if (
+          part?.type === "text" &&
+          "text" in part &&
+          typeof part.text === "string" &&
+          part.text.length > MAX_MESSAGE_TEXT_CHARS
+        ) {
+          return new Response(
+            JSON.stringify({ error: "Message too long." }),
+            { status: 413, headers: { "Content-Type": "application/json" } },
+          );
+        }
+      }
+    }
 
     // Pull the most recent user message for persistence. UIMessage parts
     // can hold text + other blocks; we only persist text content.
@@ -205,6 +313,10 @@ export async function POST(req: Request): Promise<Response> {
       model: "anthropic/claude-sonnet-4.6",
       system: await compileSystemPrompt({ firstName, userMessage: lastUserText }),
       messages: await convertToModelMessages(messages),
+      // FINDGOD responses are short by design: opener + scripture +
+      // 2-4 paragraphs + choices block. 1500 tokens is generous and
+      // caps the worst-case output cost per turn.
+      maxOutputTokens: MAX_OUTPUT_TOKENS,
       experimental_transform: smoothStream({
         chunking: "word",
         delayInMs: 18,

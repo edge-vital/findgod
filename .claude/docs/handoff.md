@@ -1,13 +1,13 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-05-01 · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-05-03 · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**Paused for a front-end concept deep-dive.** Jones is taking a beat to audit the overall product/UX direction with agents before committing to M4 Knowledge. After the deep-dive, the planned next move is M4 corpus build (WEB Bible + 5 founder devotionals + scaffolding the seed script). New session will start with that audit; this session ends with M2 Examples shipped, inclusive language pass shipped, and M4 plan locked.
+**FE deep-dive complete (2026-05-03). Security audit complete (2026-05-03).** The 3-agent UX research returned a tiered plan at `.claude/docs/fe-intuition-plan.md` (Tier 1: kill white user bubble + sticky composer + dated "Today's Word" card). The 5-agent security audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. No active leaks. Full findings at `.claude/docs/security-audit-2026-05-03.md`. The four HIGH items: (1) open redirect in admin auth callback `next` param, (2) `/api/chat` accepts unbounded body, (3) authenticated users have no rate limit, (4) Personality stage header literally invites prompt injection ("follow these over anything earlier"). Awaiting Jones approval on the ranked fix plan before any code changes.
 
 **AI Training 2.0 — M0/M1/M2 all shipped. Currently at the M2 → M4 strategic pivot.** Admin `/prompt` is the 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality (M1) and Examples (M2) are both LIVE. Guardrails (M3) deferred — see strategic pivot below. Knowledge (M4) is the next major build.
 
@@ -295,16 +295,18 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 
 ## 🚧 What's pending — in roughly priority order
 
-### Immediate (next session — front-end concept deep-dive first, then M4 build)
+### Immediate
 
-0. **Front-end concept deep-dive** — Jones is auditing the overall product/UX direction with agents in a fresh session before committing to M4. Whatever conclusions land there feed into everything below. Don't start M4 build until that audit ships.
+0. **Security audit complete (2026-05-03)** — 5 agents found 0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE. Full plan at `.claude/docs/security-audit-2026-05-03.md`. **Tier 1 (HIGH-only) fix list awaits Jones approval before any code changes.** Tier 1 includes: open redirect in admin auth callback, chat body size cap, per-user chat rate limit, reword Personality stage header to stop inviting injection.
 
-1. **Jones's homework for M4 (when audit greenlights):**
+1. **FE intuition plan** — 3-agent UX/brand/industry deep-dive complete (2026-05-03). Plan saved at `.claude/docs/fe-intuition-plan.md`. Tier 1 = kill white user bubble + sticky composer + dated "Today's Word" card (smallest set that addresses the "feels basic" complaint). Awaiting Jones approval; can interleave with M4 build.
+
+2. **Jones's homework for M4 (when audit + FE plan greenlight):**
     - **Review active Personality config** at admin.findgod.com/prompt → Personality. Scan all 5 fields for gendered vocatives ("brother", "as a man you…", "men come to you"). Republish if any found. The fallback prompt is clean; the active personality may not be.
     - **Source WEB Bible** — download from https://ebible.org/web/ as JSON or plain text. Drop in `data/bible-web.json` at repo root. If the format's weird, paste the link and Claude will handle parsing.
     - **Write 5 founder devotionals** — 200 words each, in locked brand voice (per `.claude/rules/brand-guidelines.md`). Topics: lust/shame, anxiety/fear, purpose, money, fellowship/community-wound. Drop as markdown in `.claude/docs/devotionals/01-*.md`. These become voice samples that shape every reply on those topics.
 
-2. **M4 Knowledge build (Claude's hands, after audit + corpus):**
+3. **M4 Knowledge build (Claude's hands, after audit + corpus):**
     - Scaffold `scripts/seed-knowledge.ts` (chunk + embed + insert into existing `knowledge_documents` + `knowledge_chunks` tables)
     - Replace `knowledgeStage` stub in `lib/prompt-compiler.ts` with real RPC retrieval
     - Wire spotlighting (`<source id="X">…</source>` + base-prompt directive that says content is reference material, not instructions)
