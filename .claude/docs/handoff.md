@@ -1,13 +1,51 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-05-03 (security audit shipped) · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-05-03 (security audit shipped + pushed; Supabase migrations pending) · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**FE deep-dive complete (2026-05-03). Security audit COMPLETE + ALL 3 TIERS SHIPPED (2026-05-03).** The 3-agent UX research returned a tiered plan at `.claude/docs/fe-intuition-plan.md` (Tier 1: kill white user bubble + sticky composer + dated "Today's Word" card) — STILL AWAITING JONES APPROVAL. The 5-agent security audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. **All HIGH + MEDIUM + most LOW fixes shipped across 9 commits** (4 tier-1 + 4 tier-2 + 1 tier-1-gap + 1 tier-2-gap on each repo + tier-3 + tier-3-gap). Verification ran 3 agents after each tier — gaps were caught and closed in-tier. 41 vitest tests pass (was 25). 0 npm vulnerabilities both repos. **TWO ACTIONS REQUIRED FROM JONES** before the new rate-limit + perf-index code starts working: (a) run `supabase/migrations/20260503000001_rate_limits.sql` in Supabase SQL editor; (b) run `supabase/migrations/20260503000002_messages_user_daily_idx.sql`. Both are idempotent + safe to re-run. Helpers fail-open until the tables exist, so chat keeps working in the meantime. Full findings at `.claude/docs/security-audit-2026-05-03.md`.
+**FE deep-dive complete. Security audit COMPLETE + ALL 3 TIERS SHIPPED + PUSHED + DEPLOYED (2026-05-03).** Both production deploys went green: findgod.com (deploy `5HMXkBwhNgPfcfjRYrhed91Wx8H6`, 44s build) and admin.findgod.com (deploy `kg6WYgQueniLeLZ1BbXKaL94Q3t2`, 34s build).
+
+**Two open loops at session end:**
+
+1. **FE intuition plan** at `.claude/docs/fe-intuition-plan.md` (Tier 1: kill white user bubble + sticky composer + dated "Today's Word" card) — STILL AWAITING JONES APPROVAL before any code changes.
+
+2. **Two Supabase migrations pending — BLOCKED on dashboard access.** Files: `supabase/migrations/20260503000001_rate_limits.sql` (creates the rate-limit table the new OTP + Examples-save caps write into) and `20260503000002_messages_user_daily_idx.sql` (composite partial index supporting the per-user daily count query). Both are idempotent. The new code FAILS OPEN until the table exists — chat + signups keep working unchanged, but the rate limits aren't enforcing yet. **Jones flagged he doesn't see a Supabase project in his account.** The project DOES exist + is actively serving every request — its ref is `vxrqsbvejzonapamnivu`. Direct dashboard URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`. If that 404s, he's logged into the wrong Supabase account; candidates (in order of likelihood): `ecom888@proton.me` (main repo author), `leads@vitaledgeleads.com` (Vercel/admin email), `jon@findgod.com` (admin allowlist email). Once he finds it, paste each migration's contents into SQL editor → Run.
+
+**Security audit summary** — full findings at `.claude/docs/security-audit-2026-05-03.md`. The 5-agent audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. All HIGH + MEDIUM + most LOW shipped across 9 commits with 3-agent verification after each tier (gaps caught + closed in-tier). 41 vitest tests pass (was 25). 0 npm vulnerabilities both repos.
+
+What's now LIVE in production (active enforcement):
+- Admin auth callback open-redirect closed (regex tightened to canonical pathname)
+- /api/chat body cap (64KB), message cap (60), per-message text cap (4KB), parts-per-message cap (20)
+- Per-authenticated-user daily message budget (100/24h) + maxOutputTokens (1500) on streamText
+- Anti-injection sandwich at compiler level (header + footer wrap every compiled prompt; sandwich-defense pattern from Greshake et al. 2023 / OWASP LLM01)
+- Personality stage header reworded; Examples stage wraps each Q&A in `<example>` delimiters + strips injection-flavored tags
+- firstName escape in named preamble
+- Cookie HttpOnly + HMAC sign on `findgod_session_id` (verifyOtp backfill rejects unsigned/forged cookies)
+- Beehiiv via `after()` (true fire-and-forget; user no longer waits on Beehiiv)
+- embed() input cap 2KB
+- Unified admin-gate predicate (`lib/admin-check.ts::isAdminUser`) shared by proxy + every server action including pixels
+- next 16.2.4 + postcss override = 0 vulnerabilities
+- `import "server-only"` tripwires on every lib file that constructs the service-role client (15 files across both repos)
+- COOP/CORP/X-DNS-Prefetch-Control + Permissions-Policy `interest-cohort=()` `browsing-topics=()` headers
+- Admin CSP `connect-src` tightened from `*.supabase.co` wildcard to literal project URL
+- `app/robots.ts` (both repos) + `app/sitemap.ts` (main)
+- HMAC kid rotation infra in BOTH `session-cookie.ts` AND `chat-limit.ts` (rotation procedure in file headers)
+
+What's NOT enforcing yet (will turn on once migrations run):
+- OTP request + verify rate limits (per-email + per-IP) — main + admin
+- Examples save/delete/toggle rate limit (per-admin)
+- Composite perf index for the daily count query
+
+What's STILL open in the audit (deferred — Tier 4 / future):
+- Nonce-based CSP (kill `'unsafe-inline'`) — half-day proxy.ts rewrite
+- `__Host-` cookie prefix
+- Session-cookie expiry inside the signed payload
+- Output content moderation on AI responses
+- Multi-account abuse beyond per-IP + per-email caps (proof-of-work / account-bound captcha)
 
 **AI Training 2.0 — M0/M1/M2 all shipped. Currently at the M2 → M4 strategic pivot.** Admin `/prompt` is the 6-tab workspace (Personality / Examples / Guardrails / Knowledge / Preview / Raw). Personality (M1) and Examples (M2) are both LIVE. Guardrails (M3) deferred — see strategic pivot below. Knowledge (M4) is the next major build.
 
@@ -350,6 +388,8 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 19. **NEVER pass function-typed values from a Server Component to a Client Component as props.** This includes lucide-react icon component refs (`{ icon: LayoutDashboard }`), forwardRef objects, callback functions, JSX element factories. Next 16 / React 19 RSC validation throws "Functions cannot be passed directly to Client Components unless you explicitly expose it by marking it with 'use server'" — and on Vercel the response is a 500. Latent bugs of this shape may not surface until a deploy rotates the build cache (this exact pattern lived in `(app)/layout.tsx` for weeks before the M2 deploy triggered it). Fix: move the data structure containing the function INTO the Client Component so the boundary is never crossed. Caught + fixed 2026-04-26 (commit `d67f1be`).
 20. **Always render `<dialog.Portal />` when using `useConfirmDialog`.** The hook returns `{ confirm, Portal }` — `confirm()` only sets internal state; the Portal component is what actually displays the dialog. Forgetting to mount it = the click handler hangs silently because the Promise that resolves on Confirm/Cancel never resolves. PersonalityForm gets it right (line 178). ExamplesWorkspace forgot it on first ship and the Delete button silently did nothing. Caught 2026-04-28 (commit `d2f6ecf`).
 21. **Active Supabase Personality config overrides the fallback system prompt.** When changing AI voice rules, edits to `lib/findgod-system-prompt.ts` only take effect if the active row in `personality_config` is empty/missing. If Jones has published a personality via admin → /prompt → Personality, that personality compiles INTO the live prompt and can carry forward old phrasing (e.g. gendered vocatives) even after the fallback is updated. After any voice-rule change, prompt Jones to review and republish the active personality.
+22. **Claude can NOT run Supabase migrations from this environment.** The service-role key in `.env.local` works for table operations via PostgREST but Supabase blocks arbitrary DDL (CREATE TABLE / CREATE INDEX) over that path. Running migrations requires either the database password (not in env) or a Personal Access Token to the Management API (not in env). Supabase CLI isn't installed. Path forward: (a) Jones runs the migration in Supabase dashboard SQL editor, OR (b) install Supabase CLI + interactive `supabase login`, OR (c) add a Personal Access Token to env. The Supabase project ref is `vxrqsbvejzonapamnivu` (URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`). Direct dashboard access is the path Jones has used for prior migrations (20260419, 20260422, 20260423 series).
+23. **Jones does not have an obvious "FINDGOD" project in his Supabase dashboard view at first glance.** The project EXISTS at ref `vxrqsbvejzonapamnivu` and is actively serving every chat / signup / admin page request, but Jones surfaced confusion that he "doesn't have a project for findgod." Most likely: he's logged into a different Supabase account than the one that owns it, OR the project name in the dashboard isn't "findgod" (could be unnamed / placeholder / leftover from setup). The direct dashboard URL bypasses the project list and goes straight to the project. If THAT 404s, account access is the gap.
 
 ---
 
