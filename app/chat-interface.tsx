@@ -5,12 +5,15 @@ import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
 import { InscriptionDivider } from "@/components/inscription-divider";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
+import type { DailyVerse } from "@/lib/todays-verse";
 import { CATEGORIES } from "./chat/categories";
 import { CategoryPanel } from "./chat/category-panel";
+import { ChatTopBar } from "./chat/chat-top-bar";
 import { ReturningGreeting, LiveMessage } from "./chat/greetings";
 import { InstagramCTA } from "./chat/instagram-cta";
 import { MessageBubble, ThinkingIndicator } from "./chat/message-bubble";
 import { SignupBlocker } from "./chat/signup-blocker";
+import { TodaysWordCard } from "./chat/todays-word-card";
 
 /**
  * The landing-page chat shell — orchestrates empty state, message list,
@@ -80,8 +83,14 @@ const ROTATING_PROMPTS = [
   "What's heavy on your chest?",
 ];
 
-export function ChatInterface() {
-  const { messages, sendMessage, status, error } = useChat({
+export function ChatInterface({
+  todaysVerse,
+  dateLabel,
+}: {
+  todaysVerse: DailyVerse;
+  dateLabel: string;
+}) {
+  const { messages, sendMessage, status, error, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
     }),
@@ -210,12 +219,27 @@ export function ChatInterface() {
     inputRef.current?.focus();
   };
 
+  // Reset the visible chat. Doesn't touch the cookie counter — anonymous
+  // visitors can't bypass the message wall by hitting "New chat".
+  const handleNewChat = () => {
+    setMessages([]);
+    setInput("");
+    setActiveCategoryIdx(null);
+    inputRef.current?.focus();
+  };
+
   const choiceDisabled = limitReached || status !== "ready";
 
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="flex w-full flex-col gap-6 sm:gap-8">
+    <>
+      {hasMessages && <ChatTopBar onNewChat={handleNewChat} />}
+      <div
+        className={`flex w-full flex-col gap-6 sm:gap-8 ${
+          hasMessages ? "pb-32 pt-12 sm:pb-36" : ""
+        }`}
+      >
       {/* ===== EMPTY STATE ===== */}
       {!hasMessages && !limitReached && (
         <div className="flex flex-col items-center gap-5 py-6 text-center sm:gap-6 sm:py-12">
@@ -251,6 +275,10 @@ export function ChatInterface() {
               <LiveMessage />
             )}
           </div>
+
+          {/* Dated daily-verse card — anchors the empty state and gives
+              every visitor today's anchor before they even type. */}
+          <TodaysWordCard verse={todaysVerse} dateLabel={dateLabel} />
         </div>
       )}
 
@@ -289,7 +317,20 @@ export function ChatInterface() {
       {limitReached ? (
         <SignupBlocker />
       ) : (
-        <div className="flex flex-col gap-4">
+        <div
+          className={
+            hasMessages
+              ? "fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.06] bg-[#050507]/85 px-5 py-4 backdrop-blur-md sm:px-6"
+              : "flex flex-col gap-4"
+          }
+        >
+          <div
+            className={
+              hasMessages
+                ? "mx-auto flex w-full max-w-2xl flex-col gap-3"
+                : "contents"
+            }
+          >
           {/* SEARCH BAR — the visual hero of the page.
               Wrapped with an ambient glow that intensifies on focus. */}
           <div
@@ -414,23 +455,27 @@ export function ChatInterface() {
             </p>
           )}
 
-          {/* Brand promise pillars — stacked on mobile, single line on desktop */}
-          <div
-            className="animate-fade-up mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[10px] uppercase tracking-[0.25em] text-white/60"
-            style={{
-              fontFamily: "var(--font-inter)",
-              animationDelay: "900ms",
-            }}
-          >
-            <span>Scripture-anchored</span>
-            <span aria-hidden className="text-white/20">·</span>
-            <span>Unapologetically direct</span>
-            <span aria-hidden className="text-white/20">·</span>
-            <span>Always here</span>
+          {!hasMessages && (
+            /* Brand promise pillars — stacked on mobile, single line on desktop */
+            <div
+              className="animate-fade-up mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-center text-[10px] uppercase tracking-[0.25em] text-white/60"
+              style={{
+                fontFamily: "var(--font-inter)",
+                animationDelay: "900ms",
+              }}
+            >
+              <span>Scripture-anchored</span>
+              <span aria-hidden className="text-white/20">·</span>
+              <span>Unapologetically direct</span>
+              <span aria-hidden className="text-white/20">·</span>
+              <span>Always here</span>
+            </div>
+          )}
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
 

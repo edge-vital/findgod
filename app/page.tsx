@@ -1,10 +1,14 @@
+import { getTodaysVerse, getTodaysDateLabel } from "@/lib/todays-verse";
 import { ChatInterface } from "./chat-interface";
 import { CursorSpotlight } from "./cursor-spotlight";
 import { LandedTracker } from "./landed-tracker";
 
 export default function Home() {
+  const todaysVerse = getTodaysVerse();
+  const dateLabel = getTodaysDateLabel();
+
   return (
-    <main className="relative flex min-h-screen flex-col overflow-hidden bg-[#050507]">
+    <main className="relative flex min-h-screen flex-col bg-[#050507]">
       {/* Subtle radial lift for depth */}
       <div
         aria-hidden="true"
@@ -46,7 +50,7 @@ export default function Home() {
           Vertically centered on all sizes so the search bar sits at the visual focal point. */}
       <section className="relative z-10 flex flex-1 flex-col items-center justify-center px-5 py-8 sm:px-6 sm:py-16">
         <div className="w-full max-w-2xl">
-          <ChatInterface />
+          <ChatInterface todaysVerse={todaysVerse} dateLabel={dateLabel} />
         </div>
       </section>
 

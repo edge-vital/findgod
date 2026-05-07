@@ -44,7 +44,7 @@ export function MessageBubble({
         aria-busy={!isUser && isStreaming ? true : undefined}
         className={`${
           isUser
-            ? "max-w-[85%] rounded-2xl bg-white px-5 py-3 text-sm leading-relaxed text-black sm:text-base"
+            ? "max-w-[80%] rounded-2xl border border-[#C4A87C]/25 bg-[#C4A87C]/[0.04] px-5 py-3 text-sm leading-relaxed text-white/95 sm:text-base"
             : "max-w-[92%] rounded-2xl border border-white/10 bg-white/[0.03] px-6 py-5 text-[15px] leading-[1.7] text-white/90 sm:text-base"
         }`}
         style={{ fontFamily: "var(--font-inter)" }}
