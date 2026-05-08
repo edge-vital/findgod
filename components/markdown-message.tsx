@@ -1,8 +1,37 @@
 "use client";
 
+import React from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { getVerseByRef } from "@/lib/todays-verse";
 import { InscriptionDivider } from "./inscription-divider";
+
+/**
+ * Recursively flatten a React node tree to its plain-text content.
+ * Used to read the rendered text of a scripture blockquote so we can
+ * regex-match the verse reference.
+ */
+function extractText(node: React.ReactNode): string {
+  if (typeof node === "string" || typeof node === "number") return String(node);
+  if (Array.isArray(node)) return node.map(extractText).join("");
+  if (React.isValidElement(node)) {
+    const props = node.props as { children?: React.ReactNode };
+    return extractText(props.children);
+  }
+  return "";
+}
+
+/**
+ * Extract a scripture reference from a blockquote's rendered text. The
+ * AI follows the format `**— Book Chapter:Verse (ESV)**` per the system
+ * prompt; after markdown rendering that becomes plain text containing
+ * `— Book Chapter:Verse (ESV)`. Only ESV is matched — that's what our
+ * curated verse list ships, so it's also what we can render as art.
+ */
+function extractScriptureRef(text: string): string | null {
+  const match = text.match(/—\s*(.+?)\s*\(ESV\)/);
+  return match ? match[1].trim() : null;
+}
 
 /**
  * Renders an AI response's streamed text as Markdown with FINDGOD-voiced
@@ -29,14 +58,55 @@ export default function MarkdownMessage({ text }: { text: string }) {
         ),
         em: ({ children }) => <em className="italic">{children}</em>,
         // Scripture blockquote — ST06 system italic (Georgia serif).
-        blockquote: ({ children }) => (
-          <blockquote
-            className="my-5 border-l-2 border-[#C4A87C]/60 bg-white/[0.02] py-3 pl-5 pr-4 text-[17px] italic leading-[1.55] text-white/85"
-            style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
-          >
-            {children}
-          </blockquote>
-        ),
+        // When the verse is one of the 33 curated entries, render an
+        // inline "Save as image" link beneath it. The link points at
+        // the Satori-rendered share image route — clicking downloads
+        // a 1080×1080 FINDGOD-branded image of the verse.
+        blockquote: ({ children }) => {
+          const ref = extractScriptureRef(extractText(children));
+          const matched = ref ? getVerseByRef(ref) : null;
+
+          return (
+            <div className="my-5">
+              <blockquote
+                className="border-l-2 border-[#C4A87C]/60 bg-white/[0.02] py-3 pl-5 pr-4 text-[17px] italic leading-[1.55] text-white/85"
+                style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}
+              >
+                {children}
+              </blockquote>
+
+              {matched && (
+                <div className="mt-2 flex justify-end">
+                  <a
+                    href={`/api/verse-image?ref=${encodeURIComponent(matched.ref)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="focus-ring inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] uppercase tracking-[0.25em] text-white/55 transition-colors hover:text-[#C4A87C]"
+                    style={{ fontFamily: "var(--font-jetbrains)" }}
+                    aria-label={`Save ${matched.ref} as image`}
+                  >
+                    <svg
+                      width="11"
+                      height="11"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      aria-hidden="true"
+                    >
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                      <polyline points="7 10 12 15 17 10" />
+                      <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Save as image
+                  </a>
+                </div>
+              )}
+            </div>
+          );
+        },
         ol: ({ children }) => (
           <ol className="my-3 ml-5 list-decimal space-y-1.5 marker:text-white/60">
             {children}

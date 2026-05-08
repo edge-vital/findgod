@@ -176,3 +176,27 @@ export function getTodaysDateLabel(now: Date = new Date()): string {
     })
     .toUpperCase();
 }
+
+/**
+ * Normalize a scripture reference for lookup. Strips whitespace,
+ * lowercases, and trims trailing verse-letter suffixes (e.g. "27:17a"
+ * → "27:17"). The AI quotes verses with whatever capitalization Claude
+ * happens to produce; this lets the lookup tolerate that.
+ */
+function normalizeRef(ref: string): string {
+  return ref
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/(\d+):(\d+)[a-z]\b/g, "$1:$2");
+}
+
+/**
+ * Look up a curated verse by reference. Returns null if the ref is not
+ * one of the 33 curated entries — used by the verse-image route to
+ * refuse rendering arbitrary user-supplied text in FINDGOD-branded art.
+ */
+export function getVerseByRef(ref: string): DailyVerse | null {
+  const target = normalizeRef(ref);
+  return VERSES.find((v) => normalizeRef(v.ref) === target) ?? null;
+}
