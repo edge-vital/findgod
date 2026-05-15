@@ -10,8 +10,11 @@ import { CATEGORIES } from "./chat/categories";
 import { CategoryPanel } from "./chat/category-panel";
 import { ChatTopBar } from "./chat/chat-top-bar";
 import { ReturningGreeting, LiveMessage } from "./chat/greetings";
+import { getStreakDays } from "./chat/history-actions";
+import { HistoryDrawer } from "./chat/history-drawer";
 import { InstagramCTA } from "./chat/instagram-cta";
 import { MessageBubble, ThinkingIndicator } from "./chat/message-bubble";
+import { SavedDrawer } from "./chat/saved-drawer";
 import { SignupBlocker } from "./chat/signup-blocker";
 import { TodaysWordCard } from "./chat/todays-word-card";
 
@@ -103,6 +106,9 @@ export function ChatInterface({
   const [activeCategoryIdx, setActiveCategoryIdx] = useState<number | null>(
     null,
   );
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [savedOpen, setSavedOpen] = useState(false);
+  const [streakDays, setStreakDays] = useState<number | undefined>(undefined);
   // null = unauthenticated (or still loading). Once set to a string, user is
   // signed in and the free-message wall is bypassed.
   const [authFirstName, setAuthFirstName] = useState<string | null>(null);
@@ -154,6 +160,29 @@ export function ChatInterface({
   // Authenticated users have an email + verified identity — they chat freely.
   const limitReached =
     !authenticated && (limitReachedThisSession || limitReachedOnLoad);
+  // Soft counter — visible runway BEFORE the wall hits. Shown only to
+  // anonymous visitors who are mid-conversation; signed-in users see nothing,
+  // and once the wall trips the wall itself communicates the state.
+  const messagesLeft = Math.max(0, freeLimit - userMessageCount);
+
+  // Streak fetch — runs once when the user goes from anonymous to
+  // authenticated. Fail-open: any error → undefined → chip hidden.
+  // We deliberately do NOT re-fetch per message — the count only
+  // changes when a UTC day boundary crosses, which is a page-load
+  // event in practice. Avoids hitting Supabase on every keystroke.
+  useEffect(() => {
+    if (authFirstName === null) {
+      setStreakDays(undefined);
+      return;
+    }
+    let cancelled = false;
+    getStreakDays().then((n) => {
+      if (!cancelled) setStreakDays(n);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authFirstName]);
 
   // Persist limit to localStorage for future visits.
   useEffect(() => {
@@ -234,7 +263,26 @@ export function ChatInterface({
 
   return (
     <>
-      {hasMessages && <ChatTopBar onNewChat={handleNewChat} />}
+      {hasMessages && (
+        <ChatTopBar
+          onNewChat={handleNewChat}
+          showHistory={authenticated}
+          onOpenHistory={() => setHistoryOpen(true)}
+          onOpenSaved={() => setSavedOpen(true)}
+          streakDays={streakDays}
+        />
+      )}
+      <HistoryDrawer
+        open={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        onLoadConversation={(loaded) => {
+          // Replace the active in-memory conversation with the historical one.
+          // useChat's setMessages accepts the UIMessage shape directly.
+          setMessages(loaded);
+          setActiveCategoryIdx(null);
+        }}
+      />
+      <SavedDrawer open={savedOpen} onClose={() => setSavedOpen(false)} />
       <div
         className={`flex w-full flex-col gap-6 sm:gap-8 ${
           hasMessages ? "pb-32 pt-12 sm:pb-36" : ""
@@ -388,6 +436,23 @@ export function ChatInterface({
               </button>
             </form>
           </div>
+
+          {/* Soft messages-left counter — visible runway for anonymous
+              visitors mid-conversation. Replaces the implicit hard wall
+              with explicit, quiet context. Hidden on empty state, on
+              signed-in users, and once the wall trips. */}
+          {hasMessages && !authenticated && messagesLeft > 0 && (
+            <p
+              className="text-center text-[10px] uppercase tracking-[0.3em] text-white/40"
+              style={{
+                fontFamily: "var(--font-jetbrains), ui-monospace, monospace",
+              }}
+            >
+              {messagesLeft === 1
+                ? "1 message before sign-in"
+                : `${messagesLeft} messages before sign-in`}
+            </p>
+          )}
 
           {!hasMessages && (
             <>

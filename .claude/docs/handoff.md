@@ -1,19 +1,28 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-05-03 (security audit shipped + pushed; Supabase migrations pending) · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-05-15 (FE Tier 1 + Tier 2 #1 verse-as-art + Tier 3 retention layer all shipped; 3 Supabase migrations pending) · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**FE deep-dive complete. Security audit COMPLETE + ALL 3 TIERS SHIPPED + PUSHED + DEPLOYED (2026-05-03).** Both production deploys went green: findgod.com (deploy `5HMXkBwhNgPfcfjRYrhed91Wx8H6`, 44s build) and admin.findgod.com (deploy `kg6WYgQueniLeLZ1BbXKaL94Q3t2`, 34s build).
+**FE Tier 1 + Tier 2 #1 (verse-as-art) + Tier 3 retention layer (Phase A + B) ALL SHIPPED on `main`** as of 2026-05-15. Security audit (all 3 tiers) shipped 2026-05-03. Production deploys green.
 
-**Two open loops at session end:**
+**FE Tier 3 retention layer — what's now live (or shipping with this push):**
+- **Soft "X messages left before sign-in" counter** under the input for anonymous mid-conversation visitors (replaces implicit hard wall with quiet visible runway).
+- **Conversation history drawer** — signed-in users get a "History" button in the top bar that opens a side panel listing their last ~50 conversations. Click one → loads the thread back into the chat.
+- **Gentle streak chip** ("12 days into the path") — soft gold pill in the top bar, hidden under 3 days, no shame/red/notifications. Distinct UTC days counted from `messages` table.
+- **Save-the-verse button** under every curated scripture quote in AI responses. Clicking saves to the user's account (or shows "Sign in to save" for anonymous users). Fails open until `saved_verses` migration is applied — button shows "Coming soon" pill if so.
+- **Saved drawer** — signed-in users get a "Saved" button in the top bar opening a panel of their bookmarked verses. Each item links to its share image + has an Unsave action.
 
-1. **FE intuition plan** at `.claude/docs/fe-intuition-plan.md` (Tier 1: kill white user bubble + sticky composer + dated "Today's Word" card) — STILL AWAITING JONES APPROVAL before any code changes.
+**Three open loops at session end:**
 
-2. **Two Supabase migrations pending — BLOCKED on dashboard access.** Files: `supabase/migrations/20260503000001_rate_limits.sql` (creates the rate-limit table the new OTP + Examples-save caps write into) and `20260503000002_messages_user_daily_idx.sql` (composite partial index supporting the per-user daily count query). Both are idempotent. The new code FAILS OPEN until the table exists — chat + signups keep working unchanged, but the rate limits aren't enforcing yet. **Jones flagged he doesn't see a Supabase project in his account.** The project DOES exist + is actively serving every request — its ref is `vxrqsbvejzonapamnivu`. Direct dashboard URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`. If that 404s, he's logged into the wrong Supabase account; candidates (in order of likelihood): `ecom888@proton.me` (main repo author), `leads@vitaledgeleads.com` (Vercel/admin email), `jon@findgod.com` (admin allowlist email). Once he finds it, paste each migration's contents into SQL editor → Run.
+1. **Three Supabase migrations pending — BLOCKED on dashboard access.** Files: `supabase/migrations/20260503000001_rate_limits.sql` (rate-limit table) + `20260503000002_messages_user_daily_idx.sql` (perf index) + `20260515000001_saved_verses.sql` (save-the-verse table). All idempotent. ALL retention features fail open until applied — chat keeps working unchanged. **Jones flagged he doesn't see a Supabase project in his account.** The project DOES exist + is actively serving every request — its ref is `vxrqsbvejzonapamnivu`. Direct dashboard URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`. If that 404s, he's logged into the wrong Supabase account; candidates: `ecom888@proton.me`, `leads@vitaledgeleads.com`, `jon@findgod.com`. Once he finds it, paste each migration's contents into SQL editor → Run.
+
+2. **FE Tier 2 polish items NOT yet shipped** (deferred this round): scripture refs in JetBrains Mono uppercase letterspaced, F-Cross send button, 888 Seal next to every AI response, Archivo Black bold styling. Effort: ~1 day if revisited.
+
+3. **M4 Knowledge / RAG** still blocked on Jones's homework: WEB Bible JSON at `data/bible-web.json` + 5 founder devotionals at `.claude/docs/devotionals/01-*.md`.
 
 **Security audit summary** — full findings at `.claude/docs/security-audit-2026-05-03.md`. The 5-agent audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. All HIGH + MEDIUM + most LOW shipped across 9 commits with 3-agent verification after each tier (gaps caught + closed in-tier). 41 vitest tests pass (was 25). 0 npm vulnerabilities both repos.
 

@@ -5,6 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { getVerseByRef } from "@/lib/todays-verse";
 import { InscriptionDivider } from "./inscription-divider";
+import { SaveVerseButton } from "./save-verse-button";
 
 /**
  * Recursively flatten a React node tree to its plain-text content.
@@ -76,7 +77,8 @@ export default function MarkdownMessage({ text }: { text: string }) {
               </blockquote>
 
               {matched && (
-                <div className="mt-2 flex justify-end">
+                <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+                  <SaveVerseButton verseRef={matched.ref} />
                   <a
                     href={`/api/verse-image?ref=${encodeURIComponent(matched.ref)}`}
                     target="_blank"
