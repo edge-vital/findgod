@@ -1,28 +1,43 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-05-15 (FE Tier 1 + Tier 2 #1 verse-as-art + Tier 3 retention layer all shipped; 3 Supabase migrations pending) · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-05-15 (FE Tier 1 + Tier 2 #1 verse-as-art + Tier 3 retention layer + phone collection all shipped; 3 Supabase migrations pending + 1 Beehiiv pre-flight task for Jones) · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
 
-**FE Tier 1 + Tier 2 #1 (verse-as-art) + Tier 3 retention layer (Phase A + B) ALL SHIPPED on `main`** as of 2026-05-15. Security audit (all 3 tiers) shipped 2026-05-03. Production deploys green.
+**FE Tier 1 + Tier 2 #1 (verse-as-art) + Tier 3 retention layer (Phase A + B) + Phone collection (Option A — collect now, send later) ALL SHIPPED on `main`** as of 2026-05-15. Security audit (all 3 tiers) shipped 2026-05-03. Production deploys green.
 
-**FE Tier 3 retention layer — what's now live (or shipping with this push):**
+**Phone collection — what's now live (or shipping with this push):**
+- Signup wall captures `name + email + phone (optional)` with a separate, unchecked **SMS consent** checkbox + an **"I'm 18 or older"** checkbox per TCPA requirements. Both checkboxes only enforced when phone has content.
+- Phone normalized to E.164 (`+1XXXXXXXXXX`) in `cleanPhone()` (US-only for V1). Invalid → server-side rejection.
+- Phone + consent timestamp + IP + the exact consent text shown all written to Supabase `user_metadata` (`phone`, `sms_consent.agreed_at`, `sms_consent.ip`, `sms_consent.text`, `sms_consent.age_confirmed`) — TCPA-defensible record.
+- Phone forwarded to Beehiiv as a `"Phone"` custom_field alongside `"First Name"`.
+- New `/sms-terms` page with TCPA-compliant disclosure (who's sending, what kind, frequency, cost, STOP/HELP, eligibility, privacy). **Lawyer-review before the first text actually sends.**
+- Admin Subscribers page + CSV export both show the new `phone` column; search now matches phone substrings.
+- **No SMS provider wired yet.** Numbers accumulate as a clean, consenting list ready to plug into Klaviyo or Twilio later when Jones is ready to send.
+
+**Pre-flight task for Jones (5 min, do this BEFORE the first real signup arrives so phones don't get silently dropped):**
+
+> Open Beehiiv → Settings → Subscribers → Custom Fields → New. Create a field named exactly `Phone` (case-sensitive), type Text. Beehiiv silently drops unknown custom fields, so without this step every phone number disappears on Beehiiv sync even though it'll still be saved to Supabase.
+
+**Open loops at session end:**
+
+1. **Three Supabase migrations pending — BLOCKED on dashboard access.** Files: `supabase/migrations/20260503000001_rate_limits.sql` (rate-limit table) + `20260503000002_messages_user_daily_idx.sql` (perf index) + `20260515000001_saved_verses.sql` (save-the-verse table). All idempotent. Code fails-open until applied. **Jones flagged he doesn't see a Supabase project in his account.** Project ref: `vxrqsbvejzonapamnivu`. Direct URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`. If 404 → wrong account; candidates: `ecom888@proton.me`, `leads@vitaledgeleads.com`, `jon@findgod.com`.
+
+2. **SMS provider not chosen / wired.** When Jones is ready to actually start texting: Klaviyo (migrate Beehiiv → Klaviyo, unified email + SMS) is the recommended stack per the 2026-05-15 3-agent research; Beehiiv + Twilio hybrid is the cheaper runner-up. 10DLC brand + campaign registration required first (~$44 one-time + $10/mo, 1-5 day approval). Full research at session transcript — main constraints: TCPA exposure is $500-$1,500 per non-compliant text, so don't shortcut consent.
+
+3. **FE Tier 2 polish items NOT yet shipped**: scripture refs in JetBrains Mono uppercase letterspaced, F-Cross send button, 888 Seal next to every AI response, Archivo Black bold styling. Effort: ~1 day if revisited.
+
+4. **M4 Knowledge / RAG** still blocked on Jones's homework: WEB Bible JSON at `data/bible-web.json` + 5 founder devotionals at `.claude/docs/devotionals/01-*.md`.
+
+**FE Tier 3 retention layer — what shipped on 2026-05-15:**
 - **Soft "X messages left before sign-in" counter** under the input for anonymous mid-conversation visitors (replaces implicit hard wall with quiet visible runway).
 - **Conversation history drawer** — signed-in users get a "History" button in the top bar that opens a side panel listing their last ~50 conversations. Click one → loads the thread back into the chat.
 - **Gentle streak chip** ("12 days into the path") — soft gold pill in the top bar, hidden under 3 days, no shame/red/notifications. Distinct UTC days counted from `messages` table.
-- **Save-the-verse button** under every curated scripture quote in AI responses. Clicking saves to the user's account (or shows "Sign in to save" for anonymous users). Fails open until `saved_verses` migration is applied — button shows "Coming soon" pill if so.
+- **Save-the-verse button** under every curated scripture quote in AI responses. Clicking saves to the user's account (or shows "Sign in to save" for anonymous users). Fails open until `saved_verses` migration is applied.
 - **Saved drawer** — signed-in users get a "Saved" button in the top bar opening a panel of their bookmarked verses. Each item links to its share image + has an Unsave action.
-
-**Three open loops at session end:**
-
-1. **Three Supabase migrations pending — BLOCKED on dashboard access.** Files: `supabase/migrations/20260503000001_rate_limits.sql` (rate-limit table) + `20260503000002_messages_user_daily_idx.sql` (perf index) + `20260515000001_saved_verses.sql` (save-the-verse table). All idempotent. ALL retention features fail open until applied — chat keeps working unchanged. **Jones flagged he doesn't see a Supabase project in his account.** The project DOES exist + is actively serving every request — its ref is `vxrqsbvejzonapamnivu`. Direct dashboard URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`. If that 404s, he's logged into the wrong Supabase account; candidates: `ecom888@proton.me`, `leads@vitaledgeleads.com`, `jon@findgod.com`. Once he finds it, paste each migration's contents into SQL editor → Run.
-
-2. **FE Tier 2 polish items NOT yet shipped** (deferred this round): scripture refs in JetBrains Mono uppercase letterspaced, F-Cross send button, 888 Seal next to every AI response, Archivo Black bold styling. Effort: ~1 day if revisited.
-
-3. **M4 Knowledge / RAG** still blocked on Jones's homework: WEB Bible JSON at `data/bible-web.json` + 5 founder devotionals at `.claude/docs/devotionals/01-*.md`.
 
 **Security audit summary** — full findings at `.claude/docs/security-audit-2026-05-03.md`. The 5-agent audit found **0 CRITICAL / 4 HIGH / 9 MEDIUM / 11 LOW + 1 moderate CVE**. All HIGH + MEDIUM + most LOW shipped across 9 commits with 3-agent verification after each tier (gaps caught + closed in-tier). 41 vitest tests pass (was 25). 0 npm vulnerabilities both repos.
 

@@ -28,10 +28,18 @@ export type AuthState =
   | { step: "idle" }
   | { step: "code"; name: string; email: string }
   | { step: "success"; firstName: string }
-  | { step: "error"; message: string; prevStep: "idle" | "code"; email?: string; name?: string };
+  | {
+      step: "error";
+      message: string;
+      prevStep: "idle" | "code";
+      email?: string;
+      name?: string;
+      phone?: string;
+    };
 
 const NAME_MAX = 80;
 const EMAIL_MAX = 254;
+const PHONE_MAX = 20;
 const EMAIL_PATTERN = /^[^\s@.][^\s@]*@[^\s@.][^\s@]*\.[^\s@]{2,}$/;
 
 // Rate-limit windows for OTP. BotID handles scripted bots; these caps
@@ -63,6 +71,30 @@ function cleanEmail(raw: unknown): string | null {
 }
 
 /**
+ * Normalize a user-entered phone number to E.164 (`+1XXXXXXXXXX`).
+ *
+ * Phone is OPTIONAL on the signup form. This function returns:
+ *   - `null` if the raw value is missing/empty (caller treats as "skipped")
+ *   - `false` if the raw value is present but invalid (caller surfaces error)
+ *   - a normalized E.164 string on success
+ *
+ * V1 supports US numbers only (10 digits, or 11 with leading 1). Future
+ * international support would replace this with libphonenumber-js. Storing
+ * everything in E.164 means downstream tools (SMS providers, deduplication)
+ * never see "(555) 123-4567" vs "+15551234567" as different numbers.
+ */
+function cleanPhone(raw: unknown): string | null | false {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (!trimmed) return null; // genuinely empty == skipped
+  if (trimmed.length > PHONE_MAX) return false;
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return false;
+}
+
+/**
  * Step 1 — request an OTP. Writes first_name into Supabase user_metadata
  * on user creation so we can greet them by name later.
  */
@@ -81,16 +113,28 @@ export async function requestOtp(
 
   const rawName = formData.get("name");
   const rawEmail = formData.get("email");
+  const rawPhone = formData.get("phone");
+  const rawSmsConsent = formData.get("sms_consent");
+  const rawAgeConfirm = formData.get("age_confirm");
   const name = cleanName(rawName);
   const email = cleanEmail(rawEmail);
+  const phoneResult = cleanPhone(rawPhone);
+  // Checkboxes arrive as the literal "on" when checked, or absent when not.
+  const smsConsented = rawSmsConsent === "on";
+  const ageConfirmed = rawAgeConfirm === "on";
+
+  const rawNameStr = typeof rawName === "string" ? rawName : undefined;
+  const rawEmailStr = typeof rawEmail === "string" ? rawEmail : undefined;
+  const rawPhoneStr = typeof rawPhone === "string" ? rawPhone : undefined;
 
   if (!name) {
     return {
       step: "error",
       prevStep: "idle",
       message: "Name is required.",
-      name: typeof rawName === "string" ? rawName : undefined,
-      email: typeof rawEmail === "string" ? rawEmail : undefined,
+      name: rawNameStr,
+      email: rawEmailStr,
+      phone: rawPhoneStr,
     };
   }
   if (!email) {
@@ -99,7 +143,43 @@ export async function requestOtp(
       prevStep: "idle",
       message: "Please enter a valid email.",
       name,
-      email: typeof rawEmail === "string" ? rawEmail : undefined,
+      email: rawEmailStr,
+      phone: rawPhoneStr,
+    };
+  }
+
+  // Phone is OPTIONAL. If they typed something but it didn't parse → reject.
+  // If they typed something valid → enforce TCPA consent + 18+ confirmation.
+  if (phoneResult === false) {
+    return {
+      step: "error",
+      prevStep: "idle",
+      message: "That phone number doesn't look right. Use a 10-digit US number.",
+      name,
+      email,
+      phone: rawPhoneStr,
+    };
+  }
+  const phone = phoneResult; // null = skipped, or a normalized E.164 string
+  if (phone && !smsConsented) {
+    return {
+      step: "error",
+      prevStep: "idle",
+      message:
+        "If you share your phone, please tick the box agreeing to receive texts.",
+      name,
+      email,
+      phone: rawPhoneStr,
+    };
+  }
+  if (phone && !ageConfirmed) {
+    return {
+      step: "error",
+      prevStep: "idle",
+      message: "Please confirm you're 18 or older to receive texts.",
+      name,
+      email,
+      phone: rawPhoneStr,
     };
   }
 
@@ -133,12 +213,30 @@ export async function requestOtp(
     };
   }
 
+  // Build the `data` payload Supabase writes to user_metadata. Phone +
+  // consent ride here so we have a TCPA-defensible record of when/where
+  // the user agreed to receive texts. Statute of limitations is 4 years;
+  // keep these fields forever.
+  const userMetadata: Record<string, unknown> = { first_name: name };
+  if (phone) {
+    userMetadata.phone = phone;
+    userMetadata.sms_consent = {
+      agreed: true,
+      agreed_at: new Date().toISOString(),
+      ip,
+      // Snapshot the consent text shown so future-us can prove what they
+      // saw. Edit in lockstep with the signup-form copy.
+      text: "By providing my phone number and ticking this box, I agree to receive recurring marketing and transactional text messages from FINDGOD. Consent is not a condition of any purchase. Msg & data rates may apply. Msg frequency varies. Reply STOP to cancel, HELP for help.",
+      age_confirmed: true,
+    };
+  }
+
   const supabase = await createClient();
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
       shouldCreateUser: true,
-      data: { first_name: name },
+      data: userMetadata,
     },
   });
 
@@ -254,6 +352,10 @@ export async function verifyOtp(
     (data.user.user_metadata?.first_name as string | undefined) ??
     name ??
     "";
+  // Phone is optional + only present if the user filled the field at
+  // requestOtp time. If absent we just skip the Beehiiv custom field.
+  const phone =
+    (data.user.user_metadata?.phone as string | undefined) ?? undefined;
 
   // ── Admin dashboard instrumentation ─────────────────────────────────
   // 1. Emit `signed_up` funnel event with this visitor's session id.
@@ -302,6 +404,15 @@ export async function verifyOtp(
   const beehiivKey = process.env.BEEHIIV_API_KEY;
   const beehiivPub = process.env.BEEHIIV_PUBLICATION_ID;
   if (beehiivKey && beehiivPub) {
+    // PRE-FLIGHT: the "Phone" custom field MUST exist in the Beehiiv
+    // publication's dashboard before we send it. Beehiiv silently drops
+    // unknown custom fields, so without the dashboard setup the phone
+    // value vanishes on sync. Create it once at: Beehiiv → Settings →
+    // Subscribers → Custom Fields → New → name "Phone", type Text.
+    const customFields: Array<{ name: string; value: string }> = [];
+    if (firstName) customFields.push({ name: "First Name", value: firstName });
+    if (phone) customFields.push({ name: "Phone", value: phone });
+
     after(async () => {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 3_000);
@@ -320,9 +431,7 @@ export async function verifyOtp(
               send_welcome_email: true,
               utm_source: "findgod.com",
               utm_medium: "signup_wall",
-              custom_fields: firstName
-                ? [{ name: "First Name", value: firstName }]
-                : undefined,
+              custom_fields: customFields.length > 0 ? customFields : undefined,
             }),
             signal: ctrl.signal,
           },

@@ -74,6 +74,8 @@ export function SignupForm() {
     reqState.step === "error" && reqState.name ? reqState.name : "";
   const prefillEmail =
     reqState.step === "error" && reqState.email ? reqState.email : "";
+  const prefillPhone =
+    reqState.step === "error" && reqState.phone ? reqState.phone : "";
 
   return (
     <InitialView
@@ -82,6 +84,7 @@ export function SignupForm() {
       error={requestError}
       prefillName={prefillName}
       prefillEmail={prefillEmail}
+      prefillPhone={prefillPhone}
     />
   );
 }
@@ -94,13 +97,21 @@ function InitialView({
   error,
   prefillName,
   prefillEmail,
+  prefillPhone,
 }: {
   pending: boolean;
   action: (formData: FormData) => void;
   error: string | null;
   prefillName: string;
   prefillEmail: string;
+  prefillPhone: string;
 }) {
+  // Track the phone field locally so the SMS-consent block only becomes
+  // ink-bright when the user is actually offering a number. The server
+  // is the source of truth on whether consent is required — this is
+  // purely a visual affordance.
+  const [phoneTouched, setPhoneTouched] = useState(prefillPhone.length > 0);
+
   return (
     <div className="flex flex-col items-center gap-6 sm:gap-7">
       {/* Scripture anchor */}
@@ -136,10 +147,10 @@ function InitialView({
         Keep going.
       </h3>
 
-      {/* Sub — clarifies that this is about continuing the chat, not a newsletter */}
+      {/* Sub — clarifies that this is about continuing the chat */}
       <p className="max-w-md text-center text-base leading-relaxed text-white/70">
-        Sign in to keep the conversation going. Name and email only. We send one
-        code to your inbox — no password to remember.
+        Sign in to keep the conversation going. We send one code to your inbox —
+        no password to remember.
       </p>
 
       {/* Value stack with Latin crosses */}
@@ -182,33 +193,89 @@ function InitialView({
           aria-label="First name"
           className="w-full rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
         />
-        <div className="flex w-full flex-col gap-3 sm:flex-row">
-          <input
-            type="email"
-            name="email"
-            required
-            disabled={pending}
-            autoComplete="email"
-            defaultValue={prefillEmail}
-            placeholder="Enter your email"
-            aria-label="Email address"
-            className="flex-1 rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
-          />
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded-full bg-white px-7 py-3.5 text-base font-medium tracking-wide text-black transition-all hover:bg-white/90 hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {pending ? "Sending code…" : "Continue the conversation"}
-          </button>
+        <input
+          type="email"
+          name="email"
+          required
+          disabled={pending}
+          autoComplete="email"
+          defaultValue={prefillEmail}
+          placeholder="Email"
+          aria-label="Email address"
+          className="w-full rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
+        />
+        <input
+          type="tel"
+          name="phone"
+          disabled={pending}
+          autoComplete="tel"
+          inputMode="tel"
+          maxLength={20}
+          defaultValue={prefillPhone}
+          placeholder="Phone (optional)"
+          aria-label="Phone number (optional)"
+          onChange={(e) => setPhoneTouched(e.currentTarget.value.length > 0)}
+          className="w-full rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
+        />
+
+        {/* SMS consent block. Only ink-bright when a phone is present.
+            Both checkboxes are server-enforced when phone is filled, so
+            the visual fading here is purely UX. The on-screen TCPA text is
+            kept short; the full express-consent text is snapshotted into
+            user_metadata.sms_consent for the legal record. */}
+        <div
+          className={`flex flex-col gap-2.5 rounded-2xl border border-white/[0.08] bg-white/[0.02] px-4 py-3 transition-opacity ${
+            phoneTouched ? "opacity-100" : "opacity-55"
+          }`}
+        >
+          <label className="flex cursor-pointer items-start gap-2.5 text-left text-[12px] leading-[1.5] text-white/75">
+            <input
+              type="checkbox"
+              name="sms_consent"
+              disabled={pending}
+              className="mt-0.5 h-4 w-4 flex-none cursor-pointer accent-[#C4A87C]"
+            />
+            <span>
+              <strong className="font-semibold text-white">Text me.</strong> I
+              agree to receive recurring marketing &amp; transactional texts
+              from FINDGOD. Msg &amp; data rates may apply. Reply{" "}
+              <span className="font-semibold">STOP</span> to opt out,{" "}
+              <span className="font-semibold">HELP</span> for help.{" "}
+              <a
+                href="/sms-terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#C4A87C]/85 underline-offset-2 hover:underline"
+              >
+                SMS Terms
+              </a>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2.5 text-left text-[12px] leading-[1.5] text-white/75">
+            <input
+              type="checkbox"
+              name="age_confirm"
+              disabled={pending}
+              className="mt-0.5 h-4 w-4 flex-none cursor-pointer accent-[#C4A87C]"
+            />
+            <span>I&rsquo;m 18 or older.</span>
+          </label>
         </div>
+
+        <button
+          type="submit"
+          disabled={pending}
+          className="rounded-full bg-white px-7 py-3.5 text-base font-medium tracking-wide text-black transition-all hover:bg-white/90 hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {pending ? "Sending code…" : "Continue the conversation"}
+        </button>
       </form>
 
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       {/* Fine print */}
       <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">
-        Free · Email only · No password
+        Free · No password · Phone optional
       </p>
     </div>
   );
