@@ -3,12 +3,17 @@ import { ChatInterface } from "./chat-interface";
 import { CursorSpotlight } from "./cursor-spotlight";
 import { LandedTracker } from "./landed-tracker";
 
+// Re-render the static page on the server at most once an hour so the
+// prerendered Today's Word HTML tracks the real date between deploys.
+// The card itself also recomputes client-side after hydration.
+export const revalidate = 3600;
+
 export default function Home() {
   const todaysVerse = getTodaysVerse();
   const dateLabel = getTodaysDateLabel();
 
   return (
-    <main className="relative flex min-h-screen flex-col bg-[#050507]">
+    <main className="relative flex min-h-dvh flex-col bg-[#050507]">
       {/* Subtle radial lift for depth */}
       <div
         aria-hidden="true"

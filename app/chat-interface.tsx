@@ -93,9 +93,34 @@ export function ChatInterface({
   todaysVerse: DailyVerse;
   dateLabel: string;
 }) {
+  // Server-driven wall state. The client counter (below) trips the free
+  // wall optimistically, but if it drifts from the server (cookie cleared,
+  // multiple tabs, etc.) the API returns 402 LIMIT_REACHED (anonymous) or
+  // 429 DAILY_LIMIT_REACHED (signed-in). We read the structured `code` off
+  // the response in a custom fetch so the UI can show the right wall instead
+  // of an endless generic "try again" error.
+  const [serverWall, setServerWall] = useState<"free" | "daily" | null>(null);
+
   const { messages, sendMessage, status, error, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
+      // Intercept non-OK responses to surface the wall reason. We clone the
+      // response before reading it so the SDK still consumes the original
+      // stream untouched.
+      fetch: async (reqInfo, reqInit) => {
+        const res = await fetch(reqInfo, reqInit);
+        if (!res.ok) {
+          try {
+            const data = (await res.clone().json()) as { code?: string };
+            if (data?.code === "LIMIT_REACHED") setServerWall("free");
+            else if (data?.code === "DAILY_LIMIT_REACHED")
+              setServerWall("daily");
+          } catch {
+            // Non-JSON error body — fall through to the generic error UI.
+          }
+        }
+        return res;
+      },
     }),
   });
 
@@ -159,7 +184,8 @@ export function ChatInterface({
   const authenticated = authFirstName !== null;
   // Authenticated users have an email + verified identity — they chat freely.
   const limitReached =
-    !authenticated && (limitReachedThisSession || limitReachedOnLoad);
+    !authenticated &&
+    (limitReachedThisSession || limitReachedOnLoad || serverWall === "free");
   // Soft counter — visible runway BEFORE the wall hits. Shown only to
   // anonymous visitors who are mid-conversation; signed-in users see nothing,
   // and once the wall trips the wall itself communicates the state.
@@ -254,6 +280,7 @@ export function ChatInterface({
     setMessages([]);
     setInput("");
     setActiveCategoryIdx(null);
+    setServerWall(null);
     inputRef.current?.focus();
   };
 
@@ -288,8 +315,12 @@ export function ChatInterface({
           hasMessages ? "pb-32 pt-12 sm:pb-36" : ""
         }`}
       >
-      {/* ===== EMPTY STATE ===== */}
-      {!hasMessages && !limitReached && (
+      {/* ===== EMPTY STATE =====
+          Renders whenever there are no in-memory messages — including when
+          the wall is tripped on load for a returning anonymous visitor. This
+          keeps brand context + today's verse (value) above the signup wall
+          instead of dropping them onto a cold paywall card. */}
+      {!hasMessages && (
         <div className="flex flex-col items-center gap-5 py-6 text-center sm:gap-6 sm:py-12">
           <h1
             className="animate-fade-up uppercase leading-[0.9] tracking-[-0.03em] text-white"
@@ -324,9 +355,6 @@ export function ChatInterface({
             )}
           </div>
 
-          {/* Dated daily-verse card — anchors the empty state and gives
-              every visitor today's anchor before they even type. */}
-          <TodaysWordCard verse={todaysVerse} dateLabel={dateLabel} />
         </div>
       )}
 
@@ -364,11 +392,13 @@ export function ChatInterface({
       {/* ===== INPUT or BLOCKER ===== */}
       {limitReached ? (
         <SignupBlocker />
+      ) : serverWall === "daily" ? (
+        <DailyLimitCard />
       ) : (
         <div
           className={
             hasMessages
-              ? "fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.06] bg-[#050507]/85 px-5 py-4 backdrop-blur-md sm:px-6"
+              ? "fixed inset-x-0 bottom-0 z-30 border-t border-white/[0.06] bg-[#050507]/85 px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:px-6"
               : "flex flex-col gap-4"
           }
         >
@@ -539,8 +569,52 @@ export function ChatInterface({
           </div>
         </div>
       )}
+
+      {/* Dated daily-verse card — below the fold by design: the input owns
+          the first screen, the verse rewards the scroll. Rendered outside
+          the input block so it stays visible even when a wall (signup /
+          daily limit) replaces the composer. */}
+      {!hasMessages && (
+        <div className="flex justify-center">
+          <TodaysWordCard verse={todaysVerse} dateLabel={dateLabel} />
+        </div>
+      )}
       </div>
     </>
+  );
+}
+
+/**
+ * Calm "come back tomorrow" panel shown to signed-in users who hit the
+ * rolling 24h message budget (server returns 429 DAILY_LIMIT_REACHED).
+ * Mirrors the SignupBlocker chrome so the moment feels intentional, not
+ * like an error. role="status" announces it to screen readers when it
+ * replaces the composer.
+ */
+function DailyLimitCard() {
+  return (
+    <div className="relative">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -inset-16 -z-10 rounded-[60px] bg-[radial-gradient(ellipse_at_center,rgba(196,168,124,0.10)_0%,rgba(196,168,124,0.035)_35%,transparent_70%)] blur-3xl"
+      />
+      <div
+        role="status"
+        className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-b from-white/[0.045] to-white/[0.02] px-6 py-10 text-center backdrop-blur-md sm:px-10 sm:py-12"
+        style={{ fontFamily: "var(--font-inter)" }}
+      >
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-[#C4A87C]/50 to-transparent"
+        />
+        <p className="text-lg leading-relaxed text-white/90">
+          You&rsquo;ve reached today&rsquo;s limit.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-white/60">
+          Take a breath. Open scripture. Come back tomorrow.
+        </p>
+      </div>
+    </div>
   );
 }
 

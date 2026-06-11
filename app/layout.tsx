@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Archivo, Inter, JetBrains_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { Pixels } from "./pixels";
@@ -75,6 +75,18 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  // Lets the dark background bleed into the notch / home-bar area and
+  // exposes env(safe-area-inset-*) so the fixed composer can pad above
+  // the iPhone home indicator.
+  viewportFit: "cover",
+  // Matches the page background so the mobile browser chrome (status /
+  // address bar) blends into the void instead of flashing a white strip.
+  themeColor: "#050507",
 };
 
 export default function RootLayout({

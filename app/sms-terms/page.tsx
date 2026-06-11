@@ -25,7 +25,7 @@ export const metadata: Metadata = {
 
 export default function SmsTermsPage() {
   return (
-    <main className="relative min-h-screen bg-[#050507] px-6 py-16 sm:px-10 sm:py-24">
+    <main className="relative min-h-dvh bg-[#050507] px-6 py-16 sm:px-10 sm:py-24">
       <div className="mx-auto w-full max-w-2xl">
         <Link
           href="/"
