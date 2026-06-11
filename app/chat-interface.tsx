@@ -101,7 +101,8 @@ export function ChatInterface({
   // of an endless generic "try again" error.
   const [serverWall, setServerWall] = useState<"free" | "daily" | null>(null);
 
-  const { messages, sendMessage, status, error, setMessages } = useChat({
+  const { messages, sendMessage, status, error, setMessages, clearError } =
+    useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       // Intercept non-OK responses to surface the wall reason. We clone the
@@ -281,6 +282,9 @@ export function ChatInterface({
     setInput("");
     setActiveCategoryIdx(null);
     setServerWall(null);
+    // Without this, a failed send leaves useChat's error set and the stale
+    // error line bleeds onto the fresh empty state after "New chat".
+    clearError();
     inputRef.current?.focus();
   };
 
@@ -544,9 +548,21 @@ export function ChatInterface({
             </>
           )}
 
+          {/* Send-failure notice — quiet and in-palette (no red, no alarm).
+              Worded as an instruction, not a failure announcement. */}
           {error && (
-            <p role="alert" className="text-xs text-red-400">
-              That didn&rsquo;t land. Try again.
+            <p
+              role="alert"
+              className="text-center text-xs tracking-wide text-white/60"
+              style={{ fontFamily: "var(--font-inter)" }}
+            >
+              <span aria-hidden className="mr-2 text-[#C4A87C]/70">
+                —
+              </span>
+              Connection slipped. Send it again.
+              <span aria-hidden className="ml-2 text-[#C4A87C]/70">
+                —
+              </span>
             </p>
           )}
 
