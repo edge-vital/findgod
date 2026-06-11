@@ -25,14 +25,14 @@ export function InscriptionDivider({
       className={`flex items-center justify-center gap-3 ${className}`}
       title="ΙΗΣΟΥΣ ≡ 888 — the isopsephy of Jesus (Irenaeus, c. 180 AD)"
     >
-      <span className="h-px w-10 bg-white/15" />
+      <span className="h-px w-16 bg-gradient-to-r from-transparent to-white/25" />
       <span
-        className="text-[10px] uppercase tracking-[0.4em] text-white/55"
+        className="text-[10px] uppercase tracking-[0.4em] text-white/60"
         style={{ fontFamily: "var(--font-jetbrains), ui-monospace, monospace" }}
       >
         ΙΗΣΟΥΣ ≡ 888
       </span>
-      <span className="h-px w-10 bg-white/15" />
+      <span className="h-px w-16 bg-gradient-to-r from-white/25 to-transparent" />
     </div>
   );
 }

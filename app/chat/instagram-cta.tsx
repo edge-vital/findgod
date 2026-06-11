@@ -33,7 +33,7 @@ export function InstagramCTA() {
         target="_blank"
         rel="noopener noreferrer"
         aria-label="Follow FINDGOD on Instagram"
-        className="focus-ring group inline-flex items-center justify-center gap-2.5 rounded-full border border-white/10 bg-white/[0.03] px-5 py-2.5 text-sm text-white/75 backdrop-blur-sm transition-all hover:-translate-y-px hover:border-[#C4A87C]/40 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_4px_20px_rgba(196,168,124,0.08)]"
+        className="focus-ring group inline-flex items-center justify-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.03] px-5 py-3 text-sm text-white/75 backdrop-blur-sm transition-all hover:-translate-y-px hover:border-[#C4A87C]/40 hover:bg-white/[0.06] hover:text-white hover:shadow-[0_4px_20px_rgba(196,168,124,0.08)]"
         style={{ fontFamily: "var(--font-inter)" }}
       >
         <InstagramIcon className="h-[14px] w-[14px]" />

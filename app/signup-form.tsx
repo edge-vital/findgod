@@ -191,7 +191,7 @@ function InitialView({
           defaultValue={prefillName}
           placeholder="First name"
           aria-label="First name"
-          className="w-full rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
         />
         <input
           type="email"
@@ -202,7 +202,7 @@ function InitialView({
           defaultValue={prefillEmail}
           placeholder="Email"
           aria-label="Email address"
-          className="w-full rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
         />
         <input
           type="tel"
@@ -215,7 +215,7 @@ function InitialView({
           placeholder="Phone (optional)"
           aria-label="Phone number (optional)"
           onChange={(e) => setPhoneTouched(e.currentTarget.value.length > 0)}
-          className="w-full rounded-full border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
+          className="w-full rounded-xl border border-white/20 bg-white/[0.05] px-6 py-3.5 text-base text-white placeholder-white/40 backdrop-blur-sm transition-all focus:border-[#C4A87C]/50 focus:bg-white/[0.08] focus:shadow-[0_0_40px_rgba(196,168,124,0.12)] focus:outline-none disabled:opacity-50"
         />
 
         {/* SMS consent block. Only ink-bright when a phone is present.
@@ -265,13 +265,26 @@ function InitialView({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-white px-7 py-3.5 text-base font-medium tracking-wide text-black transition-all hover:bg-white/90 hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg bg-[#F0EDE6] px-7 py-3.5 text-base font-medium tracking-wide text-black transition-all hover:bg-[#F0EDE6]/90 hover:shadow-[0_0_30px_rgba(240,237,230,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? "Sending code…" : "Continue the conversation"}
         </button>
       </form>
 
-      {error && <p className="text-xs text-red-400">{error}</p>}
+      {error && (
+        <p
+          role="alert"
+          className="text-center text-xs tracking-wide text-white/60"
+        >
+          <span aria-hidden className="mr-2 text-[#C4A87C]/70">
+            —
+          </span>
+          {error}
+          <span aria-hidden className="ml-2 text-[#C4A87C]/70">
+            —
+          </span>
+        </p>
+      )}
 
       {/* Fine print */}
       <p className="text-[11px] uppercase tracking-[0.2em] text-white/55">
@@ -345,15 +358,25 @@ function CodeView({
         <button
           type="submit"
           disabled={pending}
-          className="rounded-full bg-white px-7 py-3.5 text-sm font-medium tracking-wider text-black transition-all hover:bg-white/90 hover:shadow-[0_0_30px_rgba(255,255,255,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-lg bg-[#F0EDE6] px-7 py-3.5 text-sm font-medium tracking-wider text-black transition-all hover:bg-[#F0EDE6]/90 hover:shadow-[0_0_30px_rgba(240,237,230,0.15)] disabled:cursor-not-allowed disabled:opacity-50"
         >
           {pending ? "Verifying..." : "Verify"}
         </button>
       </form>
 
       {error && (
-        <p id="otp-error" role="alert" className="text-xs text-red-400">
+        <p
+          id="otp-error"
+          role="alert"
+          className="text-center text-xs tracking-wide text-white/60"
+        >
+          <span aria-hidden className="mr-2 text-[#C4A87C]/70">
+            —
+          </span>
           {error}
+          <span aria-hidden className="ml-2 text-[#C4A87C]/70">
+            —
+          </span>
         </p>
       )}
 

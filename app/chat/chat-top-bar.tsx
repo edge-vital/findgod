@@ -60,7 +60,7 @@ export function ChatTopBar({
             <button
               type="button"
               onClick={onOpenSaved}
-              className="focus-ring flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-all hover:border-[#C4A87C]/40 hover:bg-white/[0.07] hover:text-white"
+              className="focus-ring flex min-h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-all hover:border-[#C4A87C]/40 hover:bg-white/[0.07] hover:text-white"
               style={{ fontFamily: "var(--font-jetbrains)" }}
               aria-label="Open saved verses"
             >
@@ -73,7 +73,7 @@ export function ChatTopBar({
             <button
               type="button"
               onClick={onOpenHistory}
-              className="focus-ring flex items-center gap-1.5 rounded-full border border-white/15 bg-white/[0.03] px-3 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-all hover:border-[#C4A87C]/40 hover:bg-white/[0.07] hover:text-white"
+              className="focus-ring flex min-h-9 items-center gap-1.5 rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-all hover:border-[#C4A87C]/40 hover:bg-white/[0.07] hover:text-white"
               style={{ fontFamily: "var(--font-jetbrains)" }}
               aria-label="Open conversation history"
             >
@@ -85,7 +85,7 @@ export function ChatTopBar({
           <button
             type="button"
             onClick={onNewChat}
-            className="focus-ring rounded-full border border-white/15 bg-white/[0.03] px-3.5 py-1.5 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-all hover:border-[#C4A87C]/40 hover:bg-white/[0.07] hover:text-white"
+            className="focus-ring min-h-9 rounded-lg border border-white/15 bg-white/[0.03] px-3.5 py-2 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-all hover:border-[#C4A87C]/40 hover:bg-white/[0.07] hover:text-white"
             style={{ fontFamily: "var(--font-jetbrains)" }}
             aria-label="Start a new chat"
           >

@@ -94,7 +94,7 @@ export function MultipleChoice({
             key={opt}
             onClick={() => onSelect(opt)}
             disabled={disabled}
-            className="focus-ring group/choice flex items-center justify-between rounded-full border border-white/20 bg-white/[0.06] px-5 py-3.5 text-left text-[15px] text-white backdrop-blur-sm transition-all active:translate-y-px hover:-translate-y-px hover:border-[#C4A87C]/55 hover:bg-white/[0.11] hover:shadow-[0_6px_24px_rgba(196,168,124,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
+            className="focus-ring group/choice flex items-center justify-between rounded-lg border border-white/20 bg-white/[0.06] px-5 py-3.5 text-left text-[15px] text-white backdrop-blur-sm transition-all active:translate-y-px hover:-translate-y-px hover:border-[#C4A87C]/55 hover:bg-white/[0.11] hover:shadow-[0_6px_24px_rgba(196,168,124,0.12)] disabled:cursor-not-allowed disabled:opacity-40"
             style={{ fontFamily: "var(--font-inter)" }}
           >
             <span>{opt}</span>

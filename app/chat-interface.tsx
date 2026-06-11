@@ -3,6 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport, type UIMessage } from "ai";
 import { useEffect, useRef, useState } from "react";
+import { FCross } from "@/components/f-cross";
 import { InscriptionDivider } from "@/components/inscription-divider";
 import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 import type { DailyVerse } from "@/lib/todays-verse";
@@ -84,6 +85,19 @@ const ROTATING_PROMPTS = [
   "What's the prayer you can't say out loud?",
   "What are you angry about?",
   "What's heavy on your chest?",
+];
+
+/**
+ * Mid-conversation placeholder pool. Rotates while the reply box sits
+ * empty so the voice carries through the whole thread instead of going
+ * generic after the first message.
+ */
+const REPLY_PROMPTS = [
+  "Say it plain.",
+  "What's underneath that?",
+  "Keep going.",
+  "Don't dress it up.",
+  "Name it.",
 ];
 
 export function ChatInterface({
@@ -240,17 +254,16 @@ export function ChatInterface({
     }
   }, [messages, status]);
 
-  // Rotate the input placeholder every 3s while idle on the empty state.
-  // Pause rotation once the user starts typing or starts a chat.
+  // Rotate the input placeholder every 3s while the box is empty — on the
+  // empty state AND mid-conversation (different pools). Pause while typing.
   const isTyping = input.length > 0;
-  const hasChat = messages.length > 0;
   useEffect(() => {
-    if (isTyping || hasChat || limitReached) return;
+    if (isTyping || limitReached) return;
     const id = setInterval(() => {
-      setPromptIdx((i) => (i + 1) % ROTATING_PROMPTS.length);
+      setPromptIdx((i) => i + 1);
     }, 3000);
     return () => clearInterval(id);
-  }, [isTyping, hasChat, limitReached]);
+  }, [isTyping, limitReached]);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -427,7 +440,7 @@ export function ChatInterface({
             {/* Subtle gold-tinted ring on focus */}
             <div
               aria-hidden
-              className="pointer-events-none absolute -inset-px rounded-full bg-gradient-to-r from-[#C4A87C]/0 via-white/15 to-[#C4A87C]/0 opacity-0 blur-[2px] transition-opacity duration-500 group-focus-within/input:opacity-60"
+              className="pointer-events-none absolute -inset-px rounded-2xl bg-gradient-to-r from-[#C4A87C]/0 via-white/15 to-[#C4A87C]/0 opacity-0 blur-[2px] transition-opacity duration-500 group-focus-within/input:opacity-60"
             />
             <form
               onSubmit={handleSubmit}
@@ -442,7 +455,7 @@ export function ChatInterface({
                 disabled={status !== "ready"}
                 placeholder=""
                 aria-label="Your message"
-                className="relative w-full rounded-full border border-white/22 bg-white/[0.06] py-5 pl-7 pr-16 text-base text-white caret-[#C4A87C] shadow-[0_10px_36px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-md transition-all focus:border-[#C4A87C]/45 focus:bg-white/[0.09] focus:shadow-[0_10px_44px_rgba(0,0,0,0.55),0_0_70px_rgba(196,168,124,0.14),0_0_0_1px_rgba(255,255,255,0.08)_inset] focus:outline-none disabled:opacity-50"
+                className="relative w-full rounded-2xl border border-white/22 bg-white/[0.06] py-5 pl-7 pr-16 text-base text-white caret-[#C4A87C] shadow-[0_10px_36px_rgba(0,0,0,0.5),0_0_0_1px_rgba(255,255,255,0.04)_inset] backdrop-blur-md transition-all focus:border-[#C4A87C]/45 focus:bg-white/[0.09] focus:shadow-[0_10px_44px_rgba(0,0,0,0.55),0_0_70px_rgba(196,168,124,0.14),0_0_0_1px_rgba(255,255,255,0.08)_inset] focus:outline-none disabled:opacity-50"
                 style={{ fontFamily: "var(--font-inter)" }}
                 autoFocus
               />
@@ -450,13 +463,17 @@ export function ChatInterface({
               {/* Custom animated placeholder overlay — blurs in on each rotation */}
               {!input && (
                 <span
-                  key={hasMessages ? "subsequent" : ROTATING_PROMPTS[promptIdx]}
+                  key={
+                    hasMessages
+                      ? REPLY_PROMPTS[promptIdx % REPLY_PROMPTS.length]
+                      : ROTATING_PROMPTS[promptIdx % ROTATING_PROMPTS.length]
+                  }
                   className="animate-prompt-blur-in pointer-events-none absolute inset-y-0 left-7 right-16 flex items-center text-base text-white/50"
                   style={{ fontFamily: "var(--font-inter)" }}
                 >
                   {hasMessages
-                    ? "Your reply…"
-                    : ROTATING_PROMPTS[promptIdx]}
+                    ? REPLY_PROMPTS[promptIdx % REPLY_PROMPTS.length]
+                    : ROTATING_PROMPTS[promptIdx % ROTATING_PROMPTS.length]}
                 </span>
               )}
 
@@ -464,9 +481,9 @@ export function ChatInterface({
                 type="submit"
                 disabled={!input.trim() || status !== "ready"}
                 aria-label="Send message"
-                className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-full bg-white text-black shadow-[0_4px_20px_rgba(255,255,255,0.15)] transition-all hover:scale-105 hover:bg-white hover:shadow-[0_4px_30px_rgba(255,255,255,0.25)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none disabled:hover:scale-100"
+                className="absolute right-2 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center rounded-lg bg-[#F0EDE6] text-black shadow-[0_4px_20px_rgba(240,237,230,0.15)] transition-all hover:scale-105 hover:bg-[#F0EDE6] hover:shadow-[0_4px_30px_rgba(240,237,230,0.25)] active:scale-95 disabled:cursor-not-allowed disabled:opacity-30 disabled:shadow-none disabled:hover:scale-100"
               >
-                <SendArrowIcon />
+                <FCross size={18} />
               </button>
             </form>
           </div>
@@ -517,7 +534,7 @@ export function ChatInterface({
                         aria-controls="category-panel"
                         aria-haspopup="menu"
                         aria-label={`${cat.label} — ${cat.prompts.length} prompts`}
-                        className={`focus-ring rounded-full border px-5 py-2 text-xs uppercase tracking-[0.2em] transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
+                        className={`focus-ring rounded-lg border px-5 py-3 text-xs uppercase tracking-[0.2em] transition-all disabled:cursor-not-allowed disabled:opacity-50 ${
                           active
                             ? "-translate-y-px border-[#C4A87C]/60 bg-white/[0.08] text-white shadow-[0_4px_24px_rgba(196,168,124,0.15)]"
                             : "border-white/10 bg-white/[0.02] text-white/65 hover:-translate-y-px hover:border-[#C4A87C]/50 hover:bg-white/[0.07] hover:text-white hover:shadow-[0_4px_20px_rgba(196,168,124,0.08)]"
@@ -634,25 +651,3 @@ function DailyLimitCard() {
   );
 }
 
-/**
- * Thin send-arrow SVG inside the chat input's submit button. Kept inline
- * because it's only rendered once in this file.
- */
-function SendArrowIcon() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <line x1="12" y1="19" x2="12" y2="5" />
-      <polyline points="5 12 12 5 19 12" />
-    </svg>
-  );
-}

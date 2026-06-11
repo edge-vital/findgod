@@ -63,7 +63,7 @@ export function CategoryPanel({
         <button
           onClick={onClose}
           aria-label="Close category"
-          className="focus-ring rounded-full text-sm text-white/55 transition-colors hover:text-white"
+          className="focus-ring -m-3 rounded-lg p-3 text-sm text-white/55 transition-colors hover:text-white"
         >
           <span aria-hidden>✕</span>
         </button>

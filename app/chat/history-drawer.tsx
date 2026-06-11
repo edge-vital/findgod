@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { InscriptionDivider } from "@/components/inscription-divider";
 import {
   listConversations,
   loadConversation,
@@ -115,7 +116,7 @@ export function HistoryDrawer({
           <button
             type="button"
             onClick={onClose}
-            className="focus-ring rounded-full border border-white/15 bg-white/[0.03] px-3 py-1 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-[#C4A87C]/40 hover:text-white"
+            className="focus-ring min-h-9 rounded-lg border border-white/15 bg-white/[0.03] px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-white/70 transition-colors hover:border-[#C4A87C]/40 hover:text-white"
             style={{ fontFamily: "var(--font-jetbrains)" }}
           >
             Close
@@ -124,12 +125,9 @@ export function HistoryDrawer({
 
         <div className="flex-1 overflow-y-auto px-5 py-4">
           {items === null && (
-            <p
-              className="text-center text-[11px] uppercase tracking-[0.25em] text-white/40"
-              style={{ fontFamily: "var(--font-jetbrains)" }}
-            >
-              Loading…
-            </p>
+            // Brand loading state — the inscription breathes while we fetch,
+            // same as the AI thinking indicator. No raw "Loading…" text.
+            <InscriptionDivider className="my-10 animate-pulse" />
           )}
 
           {items !== null && items.length === 0 && (
