@@ -20,7 +20,6 @@ Confirm with Jones after each phase.
 > **✅ SHIPPED 2026-06-11** (commit `068d83a`): 0.1 and 0.3 fully done; 0.2 partially —
 > mid-conversation walls keep the thread visible, and returning visitors now get brand
 > context + Today's Word above the wall instead of a bare paywall card.
-> Phases 1–3 below are NOT started.
 
 **0.1 — The invisible wall.** Server returns 402 (anon limit) / 429 (daily cap) but the
 client has no error handler — user sees only red "That didn't land. Try again." and retries
@@ -42,6 +41,10 @@ the whole chat; returning visitors land on a bare paywall card with the thread g
 ---
 
 ## Phase 1 — Quick wins bundle (each ≤30 min)
+
+> **✅ SHIPPED 2026-06-11** (commit `48294c3`, all 8 items verified live). Divider
+> strengthening mirrored to the admin repo (`30b884f`). Phases 2–3 below NOT started;
+> Phase 3 "scripture arrives" is the recommended next pick.
 
 1.1 — F-Cross as the send button (replace generic ↑ arrow) — `chat-interface.tsx` + `components/f-cross.tsx`
 1.2 — Kill the red error → bone/gold — `chat-interface.tsx`, `signup-form.tsx`
