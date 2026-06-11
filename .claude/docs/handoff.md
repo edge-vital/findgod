@@ -1,11 +1,22 @@
 # FINDGOD — Session Handoff
 
 > **Read this first** at the start of any new session so you land on your feet.
-> Last updated: 2026-05-15 (FE Tier 1 + Tier 2 #1 verse-as-art + Tier 3 retention layer + phone collection all shipped; 3 Supabase migrations pending + 1 Beehiiv pre-flight task for Jones) · Lives at `.claude/docs/handoff.md`
+> Last updated: 2026-06-11 (AI Gateway outage diagnosed + resolved with paid credits; Today's Word stale-date fix + below-fold move + ux-wow Phase 0 mobile polish shipped as `068d83a`; 3 Supabase migrations still pending) · Lives at `.claude/docs/handoff.md`
 
 ---
 
 ## 📍 Where we are right now
+
+**2026-06-11 session — chat outage diagnosed + fixed, Today's Word fixed, Phase 0 shipped:**
+
+1. **The chat had been silently DOWN.** Vercel changed AI Gateway free-tier policy: free accounts can no longer call `anthropic/claude-sonnet-4.6`. Every `/api/chat` call failed with a gateway 403 `RestrictedModelsError` that surfaced to users only as the generic "That didn't land. Try again." **Resolution: Jones bought ~$10 of AI Gateway credits (balance 11.55 after purchase) — chat worked again instantly, zero code changes.** ⚠️ **If chat ever breaks with "That didn't land" again, check the AI Gateway credit balance FIRST** (Vercel dashboard → findgod → AI Gateway → credit chip, top right) before touching code. Credits deplete with usage and there is no automatic alert.
+2. **Today's Word stale-date bug fixed** (commit `068d83a`). The homepage is statically prerendered, so the card had shown "MAY 15" for almost a month. Two-layer fix: the card recomputes verse + date client-side after hydration, AND `app/page.tsx` got `revalidate = 3600` so the server HTML re-renders hourly. Can't go stale again.
+3. **Today's Word card moved below the fold** per Jones — empty-state order is now: wordmark → inscription → greeting → input → category chips → Instagram CTA → pillars → Today's Word card (bottom). The input owns the first screen. The card renders outside the input block so it stays visible even when the signup/daily-limit wall replaces the composer. Caveat: on very tall screens it can still peek into view (page content is vertically centered).
+4. **ux-wow-plan Phase 0 shipped** — the uncommitted 2026-05-28-session work went live in the same commit: viewport `themeColor` + `viewportFit: cover` + safe-area padding on the composer (iPhone home bar), `min-h-dvh`, server-driven wall states (client now reads 402 `LIMIT_REACHED` / 429 `DAILY_LIMIT_REACHED` codes), and the calm `DailyLimitCard` ("come back tomorrow") for signed-in users at the daily cap. See `.claude/docs/ux-wow-plan.md` for Phases 1–3 (not started).
+5. **Project folders moved** — main repo now at `/Users/jonespersen/Developer/work/Find God/` (was `~/Desktop/Find God/`), and the admin repo now lives INSIDE it at `findgod-admin/` (own `.git`, gitignored by the main repo, excluded from its tsconfig). Claude-memory files were migrated to the new path-keyed directory the same day.
+6. **NEW open loop — Google Workspace bill unpaid; `jon@findgod.com` email is down** until Jones pays it. ⚠️ Knock-on risk: admin.findgod.com signs in via magic-link/OTP **email** to jon@findgod.com — while that mailbox is dead, admin login is effectively locked out. Supabase OTP signups to other addresses are unaffected.
+
+**Previous session state (2026-05-15) below:**
 
 **FE Tier 1 + Tier 2 #1 (verse-as-art) + Tier 3 retention layer (Phase A + B) + Phone collection (Option A — collect now, send later) ALL SHIPPED on `main`** as of 2026-05-15. Security audit (all 3 tiers) shipped 2026-05-03. Production deploys green.
 
@@ -31,6 +42,10 @@
 3. **FE Tier 2 polish items NOT yet shipped**: scripture refs in JetBrains Mono uppercase letterspaced, F-Cross send button, 888 Seal next to every AI response, Archivo Black bold styling. Effort: ~1 day if revisited.
 
 4. **M4 Knowledge / RAG** still blocked on Jones's homework: WEB Bible JSON at `data/bible-web.json` + 5 founder devotionals at `.claude/docs/devotionals/01-*.md`.
+
+5. **(Added 2026-06-11) Google Workspace bill** — Jones to pay so `jon@findgod.com` comes back. Admin dashboard login depends on that mailbox receiving magic-link emails.
+
+6. **(Added 2026-06-11) AI Gateway credits are now a recurring cost** — ~$11.55 balance as of 2026-06-11. No auto-alert when they run out; chat dies with the generic "That didn't land" error. Consider topping up before launch pushes.
 
 **FE Tier 3 retention layer — what shipped on 2026-05-15:**
 - **Soft "X messages left before sign-in" counter** under the input for anonymous mid-conversation visitors (replaces implicit hard wall with quiet visible runway).
@@ -127,7 +142,7 @@ What's STILL open in the audit (deferred — Tier 4 / future):
 - RAG "spotlighting" template: `<source id="X">…</source>` + explicit instruction that content is reference material, not instructions
 - Per-stage kill-switch flags so a single misbehaving stage can be disabled without reverting the whole compiler
 
-**Parked (known-acceptable today, revisit later) — see `~/.claude/projects/-Users-jonespersen-Desktop-Find-God/memory/project_parked_tasks.md` for full list + triggers:**
+**Parked (known-acceptable today, revisit later) — see `~/.claude/projects/-Users-jonespersen-Developer-work-Find-God/memory/project_parked_tasks.md` for full list + triggers (memory dir migrated 2026-06-11 after the folder move):**
 - **firstName cache fragmentation** — was parked, NOW promoted to active M4 work. Bundles cleanly with M4's prompt restructure (RAG chunks must go AFTER the cache breakpoint anyway).
 - **Native browser-blue checkbox in admin Examples Enabled toggle** — minor brand-fidelity nit. `<input type="checkbox">` should be swapped for a styled variant. Not blocking. Revisit during admin polish pass.
 - Demote-then-insert publish race in `personality/actions.ts` + `raw/actions.ts` — real concurrency issue but unreachable at N=1 admin.
@@ -223,7 +238,7 @@ Source of truth: **`.claude/rules/brand-identity.md`**.
 
 ## ⚙️ Live tech stack
 
-- **Next.js 16.2.3** (App Router, Turbopack) — project root at `/Users/jonespersen/Desktop/Find God/`
+- **Next.js 16.2.3** (App Router, Turbopack) — project root at `/Users/jonespersen/Developer/work/Find God/`
 - **Vercel** hosting — team `edge-vitals-projects`, project `findgod`
 - **Vercel AI Gateway** with **Claude Sonnet 4.6** — OIDC auth, no API key in code
 - **Vercel AI SDK v6** (`ai`, `@ai-sdk/react`)
@@ -266,6 +281,7 @@ Source of truth: **`.claude/rules/brand-identity.md`**.
 - **5 category chips:** `Wrestle · Overcome · Become · Heal · Begin`. Click chip → panel expands with 5 pinpointed first-person prompts (25 total). Click a prompt → sends as first message, chip collapses.
 - **Instagram CTA** — compact pill with IG icon, links to `instagram.com/findgod`.
 - **Brand promise pillars:** `SCRIPTURE-ANCHORED · UNAPOLOGETICALLY DIRECT · ALWAYS HERE`.
+- **Today's Word card** (added 2026-05-15, moved below the fold 2026-06-11) — dated daily-verse card, one of 33 curated ESV verses rotating by UTC day-of-year. Sits at the BOTTOM of the empty state (below pillars) per Jones. Recomputes date client-side after hydration + page revalidates hourly, so it can't show a stale date.
 - **Footer:** `© 2026 FINDGOD LLC`.
 
 ### Homepage empty state (authenticated visitor)
@@ -413,13 +429,17 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 20. **Always render `<dialog.Portal />` when using `useConfirmDialog`.** The hook returns `{ confirm, Portal }` — `confirm()` only sets internal state; the Portal component is what actually displays the dialog. Forgetting to mount it = the click handler hangs silently because the Promise that resolves on Confirm/Cancel never resolves. PersonalityForm gets it right (line 178). ExamplesWorkspace forgot it on first ship and the Delete button silently did nothing. Caught 2026-04-28 (commit `d2f6ecf`).
 21. **Active Supabase Personality config overrides the fallback system prompt.** When changing AI voice rules, edits to `lib/findgod-system-prompt.ts` only take effect if the active row in `personality_config` is empty/missing. If Jones has published a personality via admin → /prompt → Personality, that personality compiles INTO the live prompt and can carry forward old phrasing (e.g. gendered vocatives) even after the fallback is updated. After any voice-rule change, prompt Jones to review and republish the active personality.
 22. **Claude can NOT run Supabase migrations from this environment.** The service-role key in `.env.local` works for table operations via PostgREST but Supabase blocks arbitrary DDL (CREATE TABLE / CREATE INDEX) over that path. Running migrations requires either the database password (not in env) or a Personal Access Token to the Management API (not in env). Supabase CLI isn't installed. Path forward: (a) Jones runs the migration in Supabase dashboard SQL editor, OR (b) install Supabase CLI + interactive `supabase login`, OR (c) add a Personal Access Token to env. The Supabase project ref is `vxrqsbvejzonapamnivu` (URL: `https://supabase.com/dashboard/project/vxrqsbvejzonapamnivu`). Direct dashboard access is the path Jones has used for prior migrations (20260419, 20260422, 20260423 series).
-23. **Jones does not have an obvious "FINDGOD" project in his Supabase dashboard view at first glance.** The project EXISTS at ref `vxrqsbvejzonapamnivu` and is actively serving every chat / signup / admin page request, but Jones surfaced confusion that he "doesn't have a project for findgod." Most likely: he's logged into a different Supabase account than the one that owns it, OR the project name in the dashboard isn't "findgod" (could be unnamed / placeholder / leftover from setup). The direct dashboard URL bypasses the project list and goes straight to the project. If THAT 404s, account access is the gap.
+23. **Vercel AI Gateway free tier blocks Claude Sonnet (since ~June 2026).** The gateway returns 403 `RestrictedModelsError` ("Free tier users do not have access to this model") for `anthropic/claude-sonnet-4.6` unless the team has paid credits. The error reaches users only as the generic "That didn't land. Try again." — indistinguishable from a code bug from the outside. **Check the credit balance FIRST** (Vercel dashboard → findgod → AI Gateway) before debugging any chat failure. Resolved 2026-06-11 with a ~$10 top-up; credits deplete with usage and nothing alerts when they run out. Also note: the page itself stayed up (HTTP 200) the whole time — a healthy homepage proves nothing about the chat.
+
+24. **The homepage is statically prerendered — anything date/time-computed in a Server Component freezes at deploy time.** Today's Word showed "MAY 15" for a month because `getTodaysVerse()` ran once at build. Pattern for date-dependent UI on static pages: compute client-side in a `useEffect` after hydration (never during render — hydration mismatch) + add `revalidate` to the page so the server HTML tracks too. Fixed 2026-06-11, commit `068d83a`.
+
+25. **Jones does not have an obvious "FINDGOD" project in his Supabase dashboard view at first glance.** The project EXISTS at ref `vxrqsbvejzonapamnivu` and is actively serving every chat / signup / admin page request, but Jones surfaced confusion that he "doesn't have a project for findgod." Most likely: he's logged into a different Supabase account than the one that owns it, OR the project name in the dashboard isn't "findgod" (could be unnamed / placeholder / leftover from setup). The direct dashboard URL bypasses the project list and goes straight to the project. If THAT 404s, account access is the gap.
 
 ---
 
 ## 🏛️ Admin repo (parallel project)
 
-- **Folder:** `/Users/jonespersen/Desktop/findgod-admin/` (sibling to `Find God/`; note lowercase, no spaces — npm naming)
+- **Folder:** `/Users/jonespersen/Developer/work/Find God/findgod-admin/` (moved 2026-06-11 — now INSIDE the main project folder; own `.git`, gitignored by the main repo + excluded from its tsconfig)
 - **GitHub:** `github.com/edge-vital/findgod-admin` (private)
 - **Vercel project:** `findgod-admin` in same team `edge-vitals-projects`
 - **Domain:** `admin.findgod.com` (A record `admin → 76.76.21.21` at GoDaddy)
@@ -445,7 +465,7 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 
 | Path | What lives there |
 |---|---|
-| **MAIN REPO** — `/Users/jonespersen/Desktop/Find God/` | findgod.com — public site + AI chat |
+| **MAIN REPO** — `/Users/jonespersen/Developer/work/Find God/` | findgod.com — public site + AI chat |
 | `app/` | Routes + route-colocated client components (chat-interface, signup-form, page.tsx, landed-tracker, cursor-spotlight, pixels) |
 | `app/api/chat/route.ts` | The streaming chat endpoint (BotID → auth → compiler → streamText) |
 | `app/api/track/landed/route.ts` | Funnel "landed" event (BotID-protected) |
@@ -459,7 +479,7 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 | `.claude/rules/` | brand-identity, brand-guidelines, coding-style |
 | `.claude/commands/` | Custom slash commands (`findgod-post` for IG content generation) |
 | `proxy.ts` + `instrumentation-client.ts` + `next.config.ts` | Next 16 middleware (proxy), BotID setup, security headers + withBotId wrapper |
-| **ADMIN REPO** — `/Users/jonespersen/Desktop/findgod-admin/` | admin.findgod.com — auth-gated dashboard |
+| **ADMIN REPO** — `/Users/jonespersen/Developer/work/Find God/findgod-admin/` | admin.findgod.com — auth-gated dashboard (own `.git`, nested inside main folder) |
 | `app/(app)/layout.tsx` + `app/(app)/sidebar-nav.tsx` | Shell: sidebar + user menu. SidebarNav is the client island for `aria-current`. |
 | `app/(app)/overview/` · `subscribers/` · `chats/` · `costs/` · `pixels/` · `settings/` | The 6 non-prompt V1 pages |
 | `app/(app)/prompt/` | The 6-tab AI Training workspace: `layout.tsx`, `prompt-tabs.tsx`, `coming-soon.tsx`, `personality/`, `examples/`, `guardrails/`, `knowledge/`, `preview/`, `raw/` |
@@ -532,7 +552,7 @@ See `.claude/skills/security-engineer/SKILL.md` for the full attack-surface chec
 
 **Deploy a change — preferred (once GitHub auto-deploy is confirmed working):**
 ```bash
-cd "/Users/jonespersen/Desktop/Find God"
+cd "/Users/jonespersen/Developer/work/Find God"
 git add .
 git commit -m "short, why-focused message"
 git push
@@ -541,7 +561,7 @@ git push
 
 **Deploy a change — fallback (if GitHub hook isn't firing):**
 ```bash
-cd "/Users/jonespersen/Desktop/Find God"
+cd "/Users/jonespersen/Developer/work/Find God"
 vercel deploy --prod --yes
 # Already authenticated as edge-vital. Takes ~40s.
 ```
@@ -551,20 +571,20 @@ Open `http://localhost:3000/api/chat/reset` in a browser. Clears cookies + local
 
 **Start dev server (port 3847 to avoid collisions):**
 ```bash
-cd "/Users/jonespersen/Desktop/Find God"
+cd "/Users/jonespersen/Developer/work/Find God"
 npm run dev -- --port 3847
 # http://localhost:3847
 ```
 
 **Run full type-check:**
 ```bash
-cd "/Users/jonespersen/Desktop/Find God"
+cd "/Users/jonespersen/Developer/work/Find God"
 npx tsc --noEmit
 ```
 
 **Run the Vitest safety suite:**
 ```bash
-cd "/Users/jonespersen/Desktop/Find God"
+cd "/Users/jonespersen/Developer/work/Find God"
 npm test
 # 7 tests, ~250ms. Covers compiler kill switches, TTL cache, personality
 # compile shape, chat-limit HMAC. Not in CI — run locally before large changes.
@@ -572,7 +592,7 @@ npm test
 
 **Production build (catches OG generation issues):**
 ```bash
-cd "/Users/jonespersen/Desktop/Find God"
+cd "/Users/jonespersen/Developer/work/Find God"
 npm run build
 ```
 

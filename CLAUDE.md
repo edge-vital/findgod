@@ -10,7 +10,7 @@ FINDGOD is a masculine Christian brand and digital ecosystem targeting 16-30 yea
 
 - **Framework:** Next.js 16 (App Router, Turbopack), TypeScript, Tailwind CSS 4
 - **Hosting:** Vercel (Hobby tier, auto-deploy from GitHub `edge-vital/findgod`)
-- **AI:** Claude Sonnet 4.6 via **Vercel AI Gateway** (OIDC auth, no API key in code), AI SDK v6
+- **AI:** Claude Sonnet 4.6 via **Vercel AI Gateway** (OIDC auth, no API key in code), AI SDK v6. **Gateway needs paid credits** — free tier blocks Sonnet (chat fails as "That didn't land"); check the balance in Vercel → AI Gateway when chat breaks
 - **Admin dashboard:** separate repo `edge-vital/findgod-admin` → `admin.findgod.com`, shares Supabase
 - **Auth + database:** Supabase (OTP auth, `messages` / `events` / `prompt_versions` / `personality_config` / `feature_flags` / `knowledge_chunks` via pgvector)
 - **Bot defense:** Vercel BotID on `/api/chat`, `/api/track/landed`, all admin server actions
@@ -32,7 +32,7 @@ FINDGOD is a masculine Christian brand and digital ecosystem targeting 16-30 yea
 - `.claude/launch.json` — Dev server config for Claude Preview (findgod-site + findgod-admin)
 - `instrumentation-client.ts` — BotID path registration
 - `proxy.ts` — Next 16 routing middleware (function MUST be named `proxy`, not `middleware`)
-- Admin repo structure at `/Users/jonespersen/Desktop/findgod-admin/` — see its own `CLAUDE.md`
+- Admin repo at `findgod-admin/` inside this folder (own `.git`, gitignored here) — see its own `CLAUDE.md`
 
 ## Key Commands
 

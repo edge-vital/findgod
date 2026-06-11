@@ -40,3 +40,9 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 .env*.local
+
+# nested admin repo (own git history — never commit into the main repo)
+/findgod-admin/
+
+# playwright-mcp browser session artifacts
+/.playwright-mcp/
